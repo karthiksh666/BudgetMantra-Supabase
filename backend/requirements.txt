@@ -1,0 +1,49 @@
+# Web framework
+fastapi>=0.109,<1.0
+uvicorn[standard]>=0.25,<1.0
+python-multipart>=0.0.9,<1.0
+
+# Pydantic + validation
+pydantic[email]>=2.7,<3.0
+pydantic-settings>=2.4,<3.0
+
+# Database — Supabase (replaces motor + pymongo)
+supabase>=2.7,<3.0
+postgrest>=0.16,<1.0
+
+# Auth / Security
+PyJWT>=2.7,<3.0
+bcrypt>=4.0,<5.0
+google-auth>=2.20,<3.0
+requests>=2.28,<3.0
+cryptography>=42.0,<45.0
+firebase-admin>=6.5,<7.0
+
+# Data / Excel
+pandas>=2.0,<3.0
+numpy>=1.24,<3.0
+openpyxl>=3.1,<4.0
+
+# AI
+anthropic>=0.40.0
+
+# Utilities
+python-dotenv>=1.0,<2.0
+slowapi>=0.1.9,<1.0
+APScheduler>=3.9,<4.0
+cachetools>=5.0,<6.0
+pytz>=2023.3
+python-dateutil>=2.8,<3.0
+
+# Async / HTTP
+aiohttp>=3.9,<4.0
+httpx>=0.27,<1.0
+
+# Finance data
+yfinance>=0.2.40,<1.0
+
+# PDF parsing
+pdfplumber>=0.10,<1.0
+
+# Misc
+packaging>=23.0
