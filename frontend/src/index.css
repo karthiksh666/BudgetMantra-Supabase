@@ -1,0 +1,326 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Digital Clay Theme - Budget Mantra */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap');
+
+body {
+    margin: 0;
+    font-family: 'Manrope', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif;
+}
+
+code {
+    font-family: 'JetBrains Mono', source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+@layer base {
+    :root {
+        /* Digital Clay - Warm Off-White Background */
+        --background: 30 100% 99%;
+        --foreground: 24 10% 10%;
+        --card: 0 0% 100%;
+        --card-foreground: 24 10% 10%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 24 10% 10%;
+        /* Burnt Orange Primary */
+        --primary: 21 90% 48%;
+        --primary-foreground: 0 0% 100%;
+        /* Deep Obsidian Secondary */
+        --secondary: 222 47% 11%;
+        --secondary-foreground: 210 40% 98%;
+        --muted: 30 20% 96%;
+        --muted-foreground: 24 6% 45%;
+        --accent: 30 30% 95%;
+        --accent-foreground: 24 10% 10%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        /* Warm Stone Borders */
+        --border: 24 6% 90%;
+        --input: 24 6% 90%;
+        --ring: 21 90% 48%;
+        /* Financial Health Colors */
+        --chart-1: 21 90% 48%;
+        --chart-2: 84 60% 35%;
+        --chart-3: 199 89% 48%;
+        --chart-4: 48 96% 53%;
+        --chart-5: 0 84% 60%;
+        --radius: 0.75rem;
+        /* Health Score Colors */
+        --health-good: 84 81% 44%;
+        --health-avg: 48 96% 53%;
+        --health-bad: 0 84% 60%;
+    }
+    .dark {
+        --background: 0 0% 3.9%;
+        --foreground: 0 0% 98%;
+        --card: 0 0% 3.9%;
+        --card-foreground: 0 0% 98%;
+        --popover: 0 0% 3.9%;
+        --popover-foreground: 0 0% 98%;
+        --primary: 0 0% 98%;
+        --primary-foreground: 0 0% 9%;
+        --secondary: 0 0% 14.9%;
+        --secondary-foreground: 0 0% 98%;
+        --muted: 0 0% 14.9%;
+        --muted-foreground: 0 0% 63.9%;
+        --accent: 0 0% 14.9%;
+        --accent-foreground: 0 0% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 14.9%;
+        --input: 0 0% 14.9%;
+        --ring: 0 0% 83.1%;
+        --chart-1: 220 70% 50%;
+        --chart-2: 160 60% 45%;
+        --chart-3: 30 80% 55%;
+        --chart-4: 280 65% 60%;
+        --chart-5: 340 75% 55%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+@layer base {
+    [data-debug-wrapper="true"] {
+        display: contents !important;
+    }
+
+    [data-debug-wrapper="true"] > * {
+        margin-left: inherit;
+        margin-right: inherit;
+        margin-top: inherit;
+        margin-bottom: inherit;
+        padding-left: inherit;
+        padding-right: inherit;
+        padding-top: inherit;
+        padding-bottom: inherit;
+        column-gap: inherit;
+        row-gap: inherit;
+        gap: inherit;
+        border-left-width: inherit;
+        border-right-width: inherit;
+        border-top-width: inherit;
+        border-bottom-width: inherit;
+        border-left-style: inherit;
+        border-right-style: inherit;
+        border-top-style: inherit;
+        border-bottom-style: inherit;
+        border-left-color: inherit;
+        border-right-color: inherit;
+        border-top-color: inherit;
+        border-bottom-color: inherit;
+    }
+}
+
+/* ── Fluid page entrance animations ─────────────────────────────── */
+@keyframes bm-fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes bm-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes bm-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+.bm-page-enter   { animation: bm-fade-up  0.38s cubic-bezier(0.25,0.46,0.45,0.94) both; }
+.bm-fade-in      { animation: bm-fade-in  0.30s ease both; }
+.bm-scale-in     { animation: bm-scale-in 0.30s cubic-bezier(0.34,1.3,0.64,1) both; }
+
+/* ── Page hero tile animations (like Gold/Silver) ───────────────── */
+@keyframes bm-wave-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes bm-orb-float {
+  0%,100% { transform: translateY(0) scale(1);    opacity: 0.25; }
+  50%      { transform: translateY(-18px) scale(1.12); opacity: 0.45; }
+}
+@keyframes bm-orb-float2 {
+  0%,100% { transform: translateY(0) scale(1);    opacity: 0.18; }
+  50%      { transform: translateY(14px) scale(0.9);  opacity: 0.35; }
+}
+@keyframes bm-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%);  }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center;  }
+}
+@keyframes bm-title-pop {
+  from { opacity:0; transform: translateY(10px) scale(0.97); }
+  to   { opacity:1; transform: translateY(0) scale(1); }
+}
+@keyframes bm-voice-bar {
+  0%, 100% { transform: scaleY(0.25); opacity: 0.5; }
+  50%      { transform: scaleY(1);    opacity: 1;   }
+}
+.bm-voice-bar {
+  width: 3px; border-radius: 2px; height: 28px;
+  transform-origin: center;
+  animation: bm-voice-bar 0.8s ease-in-out infinite;
+}
+
+/* Apply .bm-hero to any page header div to get the animated gradient tile */
+.bm-hero {
+  position: relative;
+  overflow: hidden;
+  background-size: 200% 200%;
+  animation: bm-wave-shift 8s ease-in-out infinite;
+}
+.bm-hero .bm-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(40px);
+}
+.bm-hero .bm-orb-1 { animation: bm-orb-float  6s ease-in-out infinite; }
+.bm-hero .bm-orb-2 { animation: bm-orb-float2 8s ease-in-out infinite; }
+.bm-hero .bm-orb-3 { animation: bm-orb-float  5s 1s ease-in-out infinite; }
+.bm-hero-title      { animation: bm-title-pop 0.5s 0.1s cubic-bezier(0.34,1.3,0.64,1) both; }
+
+/* staggered children — apply to wrapper */
+.bm-stagger > * { animation: bm-fade-up 0.38s cubic-bezier(0.25,0.46,0.45,0.94) both; opacity: 0; }
+.bm-stagger > *:nth-child(1)  { animation-delay: 0.04s; }
+.bm-stagger > *:nth-child(2)  { animation-delay: 0.08s; }
+.bm-stagger > *:nth-child(3)  { animation-delay: 0.12s; }
+.bm-stagger > *:nth-child(4)  { animation-delay: 0.16s; }
+.bm-stagger > *:nth-child(5)  { animation-delay: 0.20s; }
+.bm-stagger > *:nth-child(6)  { animation-delay: 0.24s; }
+.bm-stagger > *:nth-child(7)  { animation-delay: 0.28s; }
+.bm-stagger > *:nth-child(8)  { animation-delay: 0.32s; }
+
+/* Security: hide everything on print ─────────────────────────────── */
+@media print {
+  body * { visibility: hidden !important; }
+  body::after {
+    visibility: visible !important;
+    content: "Budget Mantra — printing is disabled for your privacy.";
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #78350f; font-family: 'Outfit', sans-serif;
+  }
+}
+
+/* ── Security: blur sensitive content when tab is hidden ─────────── */
+body.bm-blur-sensitive .bm-sensitive {
+  filter: blur(8px);
+  transition: filter 0.2s ease;
+}
+
+/* ── Dark mode — global surface overrides ────────────────────────── */
+/* Gradient hero cards (blue/orange/green), colored buttons and badges
+   are NOT targeted — they keep their vivid colours in dark mode.      */
+
+/* ── Page shell ── */
+.dark body        { background-color: #0c1017 !important; color: #e2e8f0; }
+.dark .min-h-screen { background-color: #0c1017 !important; }
+.dark .bg-\[\#fffaf5\], .dark .bg-\[\#f8f6f2\], .dark .bg-\[\#f5f3f0\] { background-color: #0c1017 !important; }
+
+/* ── White / stone surfaces (cards, panels, drawers) ── */
+.dark .bg-white   { background-color: #161d2b !important; }
+.dark .bg-stone-50  { background-color: #111827 !important; }
+.dark .bg-stone-100 { background-color: #1e293b !important; }
+.dark .bg-stone-200 { background-color: #263248 !important; }
+
+/* ── Tinted "50" helper surfaces that need to go dark ── */
+.dark .bg-indigo-50  { background-color: #1a2035 !important; }
+.dark .bg-blue-50    { background-color: #141e30 !important; }
+.dark .bg-sky-50     { background-color: #101d2e !important; }
+.dark .bg-emerald-50 { background-color: #0f2018 !important; }
+.dark .bg-teal-50    { background-color: #0e1f1e !important; }
+.dark .bg-amber-50   { background-color: #1f1a0a !important; }
+.dark .bg-yellow-50  { background-color: #1c1a08 !important; }
+.dark .bg-red-50     { background-color: #1f1010 !important; }
+.dark .bg-rose-50    { background-color: #1f1012 !important; }
+.dark .bg-orange-50  { background-color: #1f1508 !important; }
+.dark .bg-violet-50  { background-color: #180f2e !important; }
+.dark .bg-purple-50  { background-color: #170e2a !important; }
+.dark .bg-pink-50    { background-color: #1f0f1a !important; }
+.dark .bg-slate-50   { background-color: #111827 !important; }
+
+/* ── Borders ── */
+.dark .border-stone-100  { border-color: #1e2d45 !important; }
+.dark .border-stone-200  { border-color: #263650 !important; }
+.dark .border-indigo-100 { border-color: #1e2d50 !important; }
+.dark .border-blue-100   { border-color: #1a2840 !important; }
+.dark .border-emerald-100{ border-color: #143825 !important; }
+.dark .border-amber-100  { border-color: #2a2010 !important; }
+.dark .border-red-100,.dark .border-red-200 { border-color: #2d1212 !important; }
+
+/* ── Text — all neutral colour families ── */
+.dark .text-stone-900,.dark .text-gray-900,.dark .text-zinc-900,.dark .text-slate-900,.dark .text-neutral-900 { color: #f1f5f9 !important; }
+.dark .text-stone-800,.dark .text-gray-800,.dark .text-zinc-800,.dark .text-slate-800,.dark .text-neutral-800 { color: #e2e8f0 !important; }
+.dark .text-stone-700,.dark .text-gray-700,.dark .text-zinc-700,.dark .text-slate-700,.dark .text-neutral-700 { color: #cbd5e1 !important; }
+.dark .text-stone-600,.dark .text-gray-600,.dark .text-zinc-600,.dark .text-slate-600,.dark .text-neutral-600 { color: #94a3b8 !important; }
+/* stone-500/400 boosted for legibility on dark backgrounds */
+.dark .text-stone-500,.dark .text-gray-500,.dark .text-zinc-500,.dark .text-slate-500,.dark .text-neutral-500 { color: #94a3b8 !important; }
+.dark .text-stone-400,.dark .text-gray-400,.dark .text-zinc-400,.dark .text-slate-400,.dark .text-neutral-400 { color: #64748b !important; }
+
+/* Tinted text that should stay readable but shift lighter */
+.dark .text-indigo-800 { color: #a5b4fc !important; }
+.dark .text-indigo-700 { color: #818cf8 !important; }
+.dark .text-indigo-600 { color: #6366f1 !important; }
+.dark .text-blue-800   { color: #93c5fd !important; }
+.dark .text-blue-700   { color: #60a5fa !important; }
+.dark .text-blue-600   { color: #3b82f6 !important; }
+.dark .text-amber-800  { color: #fcd34d !important; }
+.dark .text-amber-700  { color: #fbbf24 !important; }
+.dark .text-red-700    { color: #f87171 !important; }
+
+/* ── Form inputs ── */
+.dark input, .dark textarea, .dark select {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+/* But leave gradient/coloured inputs alone */
+.dark input[style], .dark textarea[style] {
+  background-color: unset !important;
+  border-color: unset !important;
+  color: unset !important;
+}
+
+/* ── Popovers / dropdowns / dialogs ── */
+.dark [data-radix-popper-content-wrapper] > div { background-color: #161d2b !important; border-color: #1e2d45 !important; }
+.dark [role="dialog"] .bg-white { background-color: #161d2b !important; }
+
+/* ── Page background helpers — dark mode safe ──────────────────── */
+.bm-page-bg-budget  { background: linear-gradient(160deg, #f0fdf4 0%, #f7fef9 50%, #fffaf5 100%); }
+.bm-page-bg-violet  { background: linear-gradient(160deg, #f5f3ff 0%, #faf8ff 50%, #fffaf5 100%); }
+.dark .bm-page-bg-budget { background: #0c1017 !important; }
+.dark .bm-page-bg-violet { background: #0c1017 !important; }
+
+/* ── Security blur — applied via JS on visibilitychange ─────────── */
+.bm-secure-blur [data-sensitive],
+.bm-secure-blur .bm-amount,
+.bm-secure-blur .bm-balance {
+  filter: blur(8px);
+  transition: filter 0.2s ease;
+}
+
+.bm-page-bg-teal { background: linear-gradient(160deg, #ecfdf5 0%, #f0fdfa 50%, #fffaf5 100%); }
+.dark .bm-page-bg-teal { background: #0c1017 !important; }
+
+/* ── Hide scrollbars app-wide ─────────────────────────────────────── */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; -ms-overflow-style: none; }

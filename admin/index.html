@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Mantra — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --orange: #f97316; --amber: #f59e0b; --stone-900: #1c1917; --stone-700: #44403c;
+      --stone-500: #78716c; --stone-300: #d6d3d1; --stone-100: #f5f5f4; --white: #ffffff;
+      --green: #16a34a; --red: #dc2626; --blue: #2563eb; --violet: #7c3aed;
+    }
+    body { background: #fafaf9; font-family: 'Segoe UI', system-ui, sans-serif; color: var(--stone-900); min-height: 100vh; }
+
+    /* ── Login ── */
+    #login-screen { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:16px; }
+    .login-card {
+      background: var(--white); border-radius: 20px; padding: 40px 36px; width: 100%; max-width: 400px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.1);
+    }
+    .login-logo { text-align:center; margin-bottom:28px; }
+    .login-logo .logo-icon { font-size:40px; display:block; margin-bottom:8px; }
+    .login-logo h1 { font-size:22px; font-weight:800; color:var(--stone-900); }
+    .login-logo p  { font-size:13px; color:var(--stone-500); margin-top:4px; }
+    .form-group { margin-bottom:16px; }
+    .form-group label { display:block; font-size:13px; font-weight:600; color:var(--stone-700); margin-bottom:6px; }
+    .form-group input {
+      width:100%; padding:10px 14px; border:1.5px solid var(--stone-300); border-radius:10px;
+      font-size:14px; outline:none; transition:border-color .15s;
+    }
+    .form-group input:focus { border-color:var(--orange); }
+    .btn-primary {
+      width:100%; padding:12px; background:linear-gradient(135deg,var(--orange),var(--amber));
+      color:#fff; font-size:15px; font-weight:700; border:none; border-radius:12px;
+      cursor:pointer; margin-top:8px; transition:opacity .15s;
+    }
+    .btn-primary:hover { opacity:.9; }
+    .login-error { color:var(--red); font-size:13px; margin-top:10px; text-align:center; display:none; }
+
+    /* ── App shell ── */
+    #app { display:none; }
+    .sidebar {
+      position:fixed; top:0; left:0; bottom:0; width:220px;
+      background:var(--stone-900); padding:24px 0; z-index:10;
+    }
+    .sidebar-logo { padding:0 20px 24px; border-bottom:1px solid #2c2a28; }
+    .sidebar-logo h2 { color:#fff; font-size:16px; font-weight:800; }
+    .sidebar-logo p  { color:var(--stone-500); font-size:11px; margin-top:2px; }
+    .sidebar-nav { padding:16px 0; }
+    .nav-item {
+      display:flex; align-items:center; gap:10px; padding:10px 20px;
+      color:#a8a29e; font-size:13px; font-weight:500; cursor:pointer; transition:all .15s;
+      border-left:3px solid transparent;
+    }
+    .nav-item:hover { background:#2c2a28; color:#fff; }
+    .nav-item.active { background:#2c2a28; color:#fff; border-left-color:var(--orange); }
+    .nav-item .nav-icon { font-size:16px; }
+    .sidebar-footer { position:absolute; bottom:0; left:0; right:0; padding:16px 20px; border-top:1px solid #2c2a28; }
+    .logout-btn {
+      display:flex; align-items:center; gap:8px; color:#a8a29e; font-size:13px; cursor:pointer;
+      background:none; border:none; font-family:inherit;
+    }
+    .logout-btn:hover { color:#fff; }
+
+    .main { margin-left:220px; padding:32px; min-height:100vh; }
+    .page-header { margin-bottom:28px; }
+    .page-header h1 { font-size:24px; font-weight:800; color:var(--stone-900); }
+    .page-header p  { font-size:14px; color:var(--stone-500); margin-top:4px; }
+
+    /* ── Stat cards ── */
+    .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; margin-bottom:28px; }
+    .stat-card {
+      background:var(--white); border-radius:14px; padding:18px 20px;
+      box-shadow:0 1px 4px rgba(0,0,0,0.06); border:1px solid #f0ece8;
+    }
+    .stat-card .label { font-size:12px; font-weight:600; color:var(--stone-500); text-transform:uppercase; letter-spacing:.05em; }
+    .stat-card .value { font-size:28px; font-weight:800; color:var(--stone-900); margin-top:4px; line-height:1; }
+    .stat-card .sub   { font-size:12px; color:var(--stone-500); margin-top:6px; }
+    .stat-card.orange .value { color:var(--orange); }
+    .stat-card.green  .value { color:var(--green);  }
+    .stat-card.violet .value { color:var(--violet); }
+    .stat-card.blue   .value { color:var(--blue);   }
+
+    /* ── Chart bar ── */
+    .chart-card { background:var(--white); border-radius:14px; padding:20px 24px; margin-bottom:24px; border:1px solid #f0ece8; }
+    .chart-card h3 { font-size:14px; font-weight:700; margin-bottom:16px; }
+    .bar-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:13px; }
+    .bar-label { width:60px; color:var(--stone-700); font-size:12px; text-align:right; flex-shrink:0; }
+    .bar-track { flex:1; background:var(--stone-100); border-radius:99px; height:10px; overflow:hidden; }
+    .bar-fill  { height:100%; border-radius:99px; background:linear-gradient(90deg,var(--orange),var(--amber)); transition:width .6s ease; }
+    .bar-count { width:36px; font-weight:600; color:var(--stone-700); font-size:12px; }
+
+    /* ── Table ── */
+    .table-card { background:var(--white); border-radius:14px; overflow:hidden; border:1px solid #f0ece8; margin-bottom:24px; }
+    .table-card-header { padding:16px 20px; border-bottom:1px solid #f0ece8; display:flex; align-items:center; justify-content:space-between; }
+    .table-card-header h3 { font-size:14px; font-weight:700; }
+    .table-card-header .count-badge { font-size:12px; font-weight:600; padding:2px 10px; border-radius:99px; background:var(--stone-100); color:var(--stone-700); }
+    table { width:100%; border-collapse:collapse; }
+    th { text-align:left; padding:10px 20px; font-size:11px; font-weight:700; color:var(--stone-500); text-transform:uppercase; letter-spacing:.05em; background:#fafaf9; border-bottom:1px solid #f0ece8; }
+    td { padding:12px 20px; font-size:13px; color:var(--stone-700); border-bottom:1px solid #f9f8f7; vertical-align:top; }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:#fafaf9; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:600; }
+    .badge-pro   { background:#fef3c7; color:#92400e; }
+    .badge-free  { background:#f0f9ff; color:#0369a1; }
+    .badge-admin { background:#fdf4ff; color:#7e22ce; }
+    .badge-nps-good { background:#dcfce7; color:#166534; }
+    .badge-nps-ok   { background:#fef9c3; color:#854d0e; }
+    .badge-nps-bad  { background:#fee2e2; color:#991b1b; }
+
+    /* ── Search ── */
+    .search-bar { padding:8px 16px 16px; }
+    .search-bar input {
+      width:100%; padding:8px 14px; border:1.5px solid var(--stone-300); border-radius:10px;
+      font-size:13px; outline:none;
+    }
+    .search-bar input:focus { border-color:var(--orange); }
+
+    /* ── Pagination ── */
+    .pagination { display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:12px 20px; border-top:1px solid #f0ece8; }
+    .page-btn { padding:5px 12px; border:1.5px solid var(--stone-300); border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; background:#fff; }
+    .page-btn:hover { border-color:var(--orange); color:var(--orange); }
+    .page-btn:disabled { opacity:.4; cursor:default; }
+    .page-info { font-size:12px; color:var(--stone-500); }
+
+    /* ── Spinner ── */
+    .spinner { display:inline-block; width:20px; height:20px; border:2px solid var(--stone-300); border-top-color:var(--orange); border-radius:50%; animation:spin .7s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .loading-row td { text-align:center; padding:32px; color:var(--stone-500); }
+
+    /* ── Tabs ── */
+    .tabs { display:flex; gap:4px; margin-bottom:20px; background:var(--stone-100); border-radius:12px; padding:4px; width:fit-content; }
+    .tab-btn { padding:7px 18px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; border:none; background:none; color:var(--stone-500); transition:all .15s; }
+    .tab-btn.active { background:#fff; color:var(--stone-900); box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+
+    .section { display:none; }
+    .section.active { display:block; }
+    .refresh-btn { padding:6px 14px; background:var(--stone-100); border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; color:var(--stone-700); }
+    .refresh-btn:hover { background:var(--stone-300); }
+    .text-truncate { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  </style>
+</head>
+<body>
+
+<!-- ── Login screen ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <span class="logo-icon">📊</span>
+      <h1>Budget Mantra</h1>
+      <p>Admin Portal</p>
+    </div>
+    <form id="login-form">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="admin@budgetmantra.in" required />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" required />
+      </div>
+      <div class="form-group">
+        <label>API URL</label>
+        <input type="text" id="api-url" value="https://budgetmantra-production.up.railway.app/api" placeholder="https://..." />
+      </div>
+      <button type="submit" class="btn-primary" id="login-btn">Sign In</button>
+      <p class="login-error" id="login-error"></p>
+    </form>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="app">
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <h2>📊 BM Admin</h2>
+      <p id="admin-name-label">Loading…</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="showSection('overview')"><span class="nav-icon">🏠</span> Overview</div>
+      <div class="nav-item" onclick="showSection('users')"><span class="nav-icon">👥</span> Users</div>
+      <div class="nav-item" onclick="showSection('feedback')"><span class="nav-icon">💬</span> Feedback</div>
+      <div class="nav-item" onclick="showSection('bugs')"><span class="nav-icon">🐛</span> Bug Reports</div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="logout-btn" onclick="logout()">🚪 Sign Out</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- ── Overview ── -->
+    <div id="section-overview" class="section active">
+      <div class="page-header">
+        <h1>Overview</h1>
+        <p>Platform metrics at a glance · <span id="last-refresh">–</span> <button class="refresh-btn" onclick="loadStats()">↻ Refresh</button></p>
+      </div>
+
+      <div class="stat-grid" id="stat-grid">
+        <div class="stat-card orange"><div class="label">Total Users</div><div class="value" id="s-total">–</div><div class="sub">All time</div></div>
+        <div class="stat-card green"><div class="label">Pro Users</div><div class="value" id="s-pro">–</div><div class="sub" id="s-pro-pct">–% conversion</div></div>
+        <div class="stat-card blue"><div class="label">New This Month</div><div class="value" id="s-new">–</div><div class="sub">signups</div></div>
+        <div class="stat-card violet"><div class="label">Avg NPS</div><div class="value" id="s-nps">–</div><div class="sub">/ 10</div></div>
+        <div class="stat-card"><div class="label">Transactions</div><div class="value" id="s-txns">–</div><div class="sub">total logged</div></div>
+        <div class="stat-card"><div class="label">EMIs</div><div class="value" id="s-emis">–</div></div>
+        <div class="stat-card"><div class="label">Trips</div><div class="value" id="s-trips">–</div></div>
+        <div class="stat-card"><div class="label">Feedback</div><div class="value" id="s-fb">–</div></div>
+      </div>
+
+      <!-- Signups chart -->
+      <div class="chart-card">
+        <h3>Signups — last 7 days</h3>
+        <div id="signup-bars">Loading…</div>
+      </div>
+
+      <!-- Feedback by category -->
+      <div class="chart-card">
+        <h3>Feedback by category</h3>
+        <div id="fb-bars">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ── Users ── -->
+    <div id="section-users" class="section">
+      <div class="page-header">
+        <h1>Users</h1>
+        <p>All registered accounts · <button class="refresh-btn" onclick="loadUsers()">↻ Refresh</button></p>
+      </div>
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3>User list</h3>
+          <span class="count-badge" id="user-count">–</span>
+        </div>
+        <div class="search-bar"><input type="text" id="user-search" placeholder="Search by name or email…" oninput="filterUsers()" /></div>
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Plan</th><th>Streak</th><th>Joined</th></tr></thead>
+          <tbody id="users-tbody"><tr class="loading-row"><td colspan="6"><div class="spinner"></div></td></tr></tbody>
+        </table>
+        <div class="pagination">
+          <button class="page-btn" id="users-prev" onclick="usersPage(-1)">← Prev</button>
+          <span class="page-info" id="users-page-info">–</span>
+          <button class="page-btn" id="users-next" onclick="usersPage(1)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Feedback ── -->
+    <div id="section-feedback" class="section">
+      <div class="page-header">
+        <h1>Feedback</h1>
+        <p>All user feedback & NPS scores · <button class="refresh-btn" onclick="loadFeedback()">↻ Refresh</button></p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" onclick="setFbTab('all', this)">All</button>
+        <button class="tab-btn" onclick="setFbTab('bug', this)">Bugs</button>
+        <button class="tab-btn" onclick="setFbTab('feature', this)">Features</button>
+        <button class="tab-btn" onclick="setFbTab('praise', this)">Praise</button>
+        <button class="tab-btn" onclick="setFbTab('other', this)">Other</button>
+      </div>
+
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3>Feedback list</h3>
+          <span class="count-badge" id="fb-count">–</span>
+        </div>
+        <table>
+          <thead><tr><th>User</th><th>Category</th><th>NPS</th><th>Message</th><th>Date</th></tr></thead>
+          <tbody id="fb-tbody"><tr class="loading-row"><td colspan="5"><div class="spinner"></div></td></tr></tbody>
+        </table>
+        <div class="pagination">
+          <button class="page-btn" id="fb-prev" onclick="fbPage(-1)">← Prev</button>
+          <span class="page-info" id="fb-page-info">–</span>
+          <button class="page-btn" id="fb-next" onclick="fbPage(1)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bug Reports Section -->
+    <div id="section-bugs" class="section">
+      <div class="page-header">
+        <h1>Bug Reports</h1>
+        <p>Structured bug reports from users · <button class="refresh-btn" onclick="loadBugs()">↻ Refresh</button></p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" onclick="setBugTab('all', this)">All</button>
+        <button class="tab-btn" onclick="setBugTab('open', this)">Open</button>
+        <button class="tab-btn" onclick="setBugTab('in_progress', this)">In Progress</button>
+        <button class="tab-btn" onclick="setBugTab('resolved', this)">Resolved</button>
+      </div>
+
+      <div class="tabs" style="margin-top:-12px">
+        <button class="tab-btn active" onclick="setBugSeverity('all', this)">All Severity</button>
+        <button class="tab-btn" onclick="setBugSeverity('blocking', this)" style="color:#dc2626">Blocking</button>
+        <button class="tab-btn" onclick="setBugSeverity('high', this)" style="color:#ea580c">High</button>
+        <button class="tab-btn" onclick="setBugSeverity('medium', this)" style="color:#d97706">Medium</button>
+        <button class="tab-btn" onclick="setBugSeverity('low', this)" style="color:#2563eb">Low</button>
+      </div>
+
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3>Bug list</h3>
+          <span class="count-badge" id="bug-count">–</span>
+        </div>
+        <table>
+          <thead><tr><th>User</th><th>Title & Severity</th><th>Description</th><th>Steps</th><th>Page</th><th>Date</th><th>Status</th></tr></thead>
+          <tbody id="bug-tbody"><tr class="loading-row"><td colspan="7"><div class="spinner"></div></td></tr></tbody>
+        </table>
+        <div class="pagination">
+          <button class="page-btn" id="bug-prev" onclick="bugPage(-1)">← Prev</button>
+          <span class="page-info" id="bug-page-info">–</span>
+          <button class="page-btn" id="bug-next" onclick="bugPage(1)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let TOKEN = localStorage.getItem('bm_admin_token') || '';
+  let API   = localStorage.getItem('bm_admin_api')   || 'https://budgetmantra-production.up.railway.app/api';
+
+  let allUsers   = [], filteredUsers = [], usersOffset = 0, usersLimit = 20;
+  let allFb      = [], fbOffset = 0, fbLimit = 20, fbCategory = 'all';
+  let allBugs    = [], bugOffset = 0, bugLimit = 15, bugStatus = 'all', bugSeverity = 'all';
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+
+  document.getElementById('login-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value;
+    const pass  = document.getElementById('login-password').value;
+    API = document.getElementById('api-url').value.replace(/\/$/, '');
+    const btn = document.getElementById('login-btn');
+    btn.textContent = 'Signing in…'; btn.disabled = true;
+
+    try {
+      const res = await fetch(`${API}/auth/login`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email, password: pass }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Login failed');
+
+      // Check admin access
+      const meRes = await fetch(`${API}/admin/stats`, {
+        headers: { Authorization: `Bearer ${data.access_token}` }
+      });
+      if (meRes.status === 403) throw new Error('Not an admin account');
+
+      TOKEN = data.access_token;
+      localStorage.setItem('bm_admin_token', TOKEN);
+      localStorage.setItem('bm_admin_api', API);
+      document.getElementById('admin-name-label').textContent = data.user?.name || email;
+      showApp();
+    } catch (err) {
+      const el = document.getElementById('login-error');
+      el.textContent = err.message; el.style.display = 'block';
+    } finally { btn.textContent = 'Sign In'; btn.disabled = false; }
+  };
+
+  function logout() {
+    TOKEN = ''; localStorage.removeItem('bm_admin_token');
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+
+  function hdrs() { return { Authorization: `Bearer ${TOKEN}` }; }
+
+  async function apiPatch(path, body) {
+    const res = await fetch(`${API}${path}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${TOKEN}` },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async function apiGet(path) {
+    const res = await fetch(`${API}${path}`, { headers: hdrs() });
+    if (res.status === 403) { logout(); throw new Error('Session expired'); }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────
+
+  async function showApp() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    await Promise.all([loadStats(), loadUsers(), loadFeedback()]);
+  }
+
+  if (TOKEN) { showApp().catch(() => { TOKEN = ''; }); }
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+
+  function showSection(name) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById(`section-${name}`).classList.add('active');
+    event.currentTarget.classList.add('active');
+    if (name === 'bugs') loadBugs();
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+
+  async function loadStats() {
+    try {
+      const d = await apiGet('/admin/stats');
+      document.getElementById('s-total').textContent  = d.total_users?.toLocaleString() || '–';
+      document.getElementById('s-pro').textContent    = d.pro_users?.toLocaleString() || '–';
+      document.getElementById('s-pro-pct').textContent= `${d.pro_pct ?? 0}% conversion`;
+      document.getElementById('s-new').textContent    = d.new_this_month?.toLocaleString() || '–';
+      document.getElementById('s-nps').textContent    = d.avg_nps ?? '–';
+      document.getElementById('s-txns').textContent   = d.total_transactions?.toLocaleString() || '–';
+      document.getElementById('s-emis').textContent   = d.total_emis?.toLocaleString() || '–';
+      document.getElementById('s-trips').textContent  = d.total_trips?.toLocaleString() || '–';
+      document.getElementById('s-fb').textContent     = d.total_feedback?.toLocaleString() || '–';
+      document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString('en-IN');
+
+      // Signup bars
+      const maxSignup = Math.max(...(d.signups_last_7_days || []).map(x => x.signups), 1);
+      document.getElementById('signup-bars').innerHTML =
+        (d.signups_last_7_days || []).map(x => `
+          <div class="bar-row">
+            <div class="bar-label">${x.date}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(x.signups/maxSignup*100)}%"></div></div>
+            <div class="bar-count">${x.signups}</div>
+          </div>`).join('') || '<p style="color:#78716c;font-size:13px">No data</p>';
+
+      // Feedback category bars
+      const fbCats = d.feedback_by_category || {};
+      const maxFb  = Math.max(...Object.values(fbCats), 1);
+      document.getElementById('fb-bars').innerHTML =
+        Object.entries(fbCats).sort((a,b) => b[1]-a[1]).map(([cat, cnt]) => `
+          <div class="bar-row">
+            <div class="bar-label">${cat}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(cnt/maxFb*100)}%"></div></div>
+            <div class="bar-count">${cnt}</div>
+          </div>`).join('') || '<p style="color:#78716c;font-size:13px">No feedback yet</p>';
+    } catch (e) { console.error(e); }
+  }
+
+  // ── Users ─────────────────────────────────────────────────────────────────
+
+  async function loadUsers() {
+    try {
+      const d = await apiGet('/admin/users?limit=500');
+      allUsers = d.items || [];
+      filteredUsers = [...allUsers];
+      document.getElementById('user-count').textContent = `${d.total} total`;
+      usersOffset = 0;
+      renderUsers();
+    } catch (e) { console.error(e); }
+  }
+
+  function filterUsers() {
+    const q = document.getElementById('user-search').value.toLowerCase();
+    filteredUsers = q
+      ? allUsers.filter(u => (u.name+u.email).toLowerCase().includes(q))
+      : [...allUsers];
+    usersOffset = 0;
+    renderUsers();
+  }
+
+  function usersPage(dir) {
+    usersOffset = Math.max(0, Math.min(usersOffset + dir * usersLimit, filteredUsers.length - 1));
+    renderUsers();
+  }
+
+  function renderUsers() {
+    const page   = filteredUsers.slice(usersOffset, usersOffset + usersLimit);
+    const total  = filteredUsers.length;
+    const from   = total ? usersOffset + 1 : 0;
+    const to     = Math.min(usersOffset + usersLimit, total);
+    document.getElementById('users-page-info').textContent = `${from}–${to} of ${total}`;
+    document.getElementById('users-prev').disabled = usersOffset === 0;
+    document.getElementById('users-next').disabled = usersOffset + usersLimit >= total;
+
+    document.getElementById('users-tbody').innerHTML = page.length ? page.map(u => `
+      <tr>
+        <td><strong>${esc(u.name || '–')}</strong>${u.is_admin ? ' <span class="badge badge-admin">admin</span>' : ''}</td>
+        <td style="color:#78716c">${esc(u.email)}</td>
+        <td style="color:#78716c;font-family:monospace">${u.phone || '–'}</td>
+        <td><span class="badge ${u.is_pro ? 'badge-pro' : 'badge-free'}">${u.is_pro ? 'Pro' : 'Free'}</span></td>
+        <td>${u.streak ?? 0} 🔥</td>
+        <td style="color:#78716c">${fmtDate(u.created_at)}</td>
+      </tr>`).join('') : '<tr class="loading-row"><td colspan="6">No users found</td></tr>';
+  }
+
+  // ── Feedback ──────────────────────────────────────────────────────────────
+
+  async function loadFeedback() {
+    try {
+      const q = fbCategory !== 'all' ? `?category=${fbCategory}` : '';
+      const d = await apiGet(`/admin/feedback${q}&limit=500`);
+      allFb = d.items || [];
+      document.getElementById('fb-count').textContent = `${d.total} total`;
+      fbOffset = 0;
+      renderFeedback();
+    } catch (e) { console.error(e); }
+  }
+
+  function setFbTab(cat, btn) {
+    fbCategory = cat;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadFeedback();
+  }
+
+  function fbPage(dir) {
+    fbOffset = Math.max(0, Math.min(fbOffset + dir * fbLimit, allFb.length - 1));
+    renderFeedback();
+  }
+
+  function renderFeedback() {
+    const page  = allFb.slice(fbOffset, fbOffset + fbLimit);
+    const total = allFb.length;
+    const from  = total ? fbOffset + 1 : 0;
+    const to    = Math.min(fbOffset + fbLimit, total);
+    document.getElementById('fb-page-info').textContent = `${from}–${to} of ${total}`;
+    document.getElementById('fb-prev').disabled = fbOffset === 0;
+    document.getElementById('fb-next').disabled = fbOffset + fbLimit >= total;
+
+    document.getElementById('fb-tbody').innerHTML = page.length ? page.map(f => {
+      const nps = f.nps_score;
+      const npsClass = nps >= 9 ? 'badge-nps-good' : nps >= 7 ? 'badge-nps-ok' : 'badge-nps-bad';
+      return `<tr>
+        <td><strong>${esc(f.user_name || '–')}</strong><br><span style="color:#78716c;font-size:11px">${esc(f.user_email || '')}</span></td>
+        <td><span class="badge badge-free">${esc(f.category || 'other')}</span></td>
+        <td>${nps != null ? `<span class="badge ${npsClass}">${nps}/10</span>` : '–'}</td>
+        <td class="text-truncate" title="${esc(f.message || '')}">${esc(f.message || '–')}</td>
+        <td style="color:#78716c;white-space:nowrap">${fmtDate(f.created_at)}</td>
+      </tr>`;
+    }).join('') : '<tr class="loading-row"><td colspan="5">No feedback found</td></tr>';
+  }
+
+  // ── Bug Reports ───────────────────────────────────────────────────────────
+
+  async function loadBugs() {
+    try {
+      const d = await apiGet('/admin/feedback?category=bug&limit=500');
+      allBugs = d.items || [];
+      bugOffset = 0;
+      renderBugs();
+    } catch (e) { console.error(e); }
+  }
+
+  function setBugTab(status, btn) {
+    bugStatus = status;
+    document.querySelectorAll('#section-bugs .tabs:first-of-type .tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    bugOffset = 0;
+    renderBugs();
+  }
+
+  function setBugSeverity(sev, btn) {
+    bugSeverity = sev;
+    document.querySelectorAll('#section-bugs .tabs:last-of-type .tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    bugOffset = 0;
+    renderBugs();
+  }
+
+  function bugPage(dir) {
+    const filtered = filteredBugs();
+    bugOffset = Math.max(0, Math.min(bugOffset + dir * bugLimit, filtered.length - 1));
+    renderBugs();
+  }
+
+  function filteredBugs() {
+    return allBugs.filter(b => {
+      if (bugStatus !== 'all' && (b.status || 'open') !== bugStatus) return false;
+      if (bugSeverity !== 'all' && b.severity !== bugSeverity) return false;
+      return true;
+    });
+  }
+
+  async function updateBugStatus(id, status) {
+    try {
+      await apiPatch(`/admin/feedback/${id}/status`, { status });
+      const bug = allBugs.find(b => b.id === id);
+      if (bug) bug.status = status;
+      renderBugs();
+    } catch (e) { alert('Failed to update status'); }
+  }
+
+  function renderBugs() {
+    const filtered = filteredBugs();
+    const page = filtered.slice(bugOffset, bugOffset + bugLimit);
+    const total = filtered.length;
+    const from = total ? bugOffset + 1 : 0;
+    const to = Math.min(bugOffset + bugLimit, total);
+    document.getElementById('bug-count').textContent = `${total} bugs`;
+    document.getElementById('bug-page-info').textContent = `${from}–${to} of ${total}`;
+    document.getElementById('bug-prev').disabled = bugOffset === 0;
+    document.getElementById('bug-next').disabled = bugOffset + bugLimit >= total;
+
+    const SEV_STYLE = { blocking: 'background:#fee2e2;color:#dc2626', high: 'background:#ffedd5;color:#ea580c', medium: 'background:#fef3c7;color:#d97706', low: 'background:#dbeafe;color:#2563eb' };
+    const STATUS_STYLE = { open: 'background:#fee2e2;color:#dc2626', in_progress: 'background:#fef3c7;color:#d97706', resolved: 'background:#dcfce7;color:#16a34a' };
+    const NEXT_STATUS = { open: 'in_progress', in_progress: 'resolved', resolved: 'open' };
+    const NEXT_LABEL = { open: '▶ Start', in_progress: '✓ Resolve', resolved: '↩ Reopen' };
+
+    document.getElementById('bug-tbody').innerHTML = page.length ? page.map(b => {
+      const sev = b.severity || 'medium';
+      const status = b.status || 'open';
+      const sevStyle = SEV_STYLE[sev] || SEV_STYLE.medium;
+      const statusStyle = STATUS_STYLE[status] || STATUS_STYLE.open;
+      const nextStatus = NEXT_STATUS[status];
+      const nextLabel = NEXT_LABEL[status];
+      return `<tr>
+        <td><strong>${esc(b.user_name || '–')}</strong><br><span style="color:#78716c;font-size:11px">${esc(b.user_email || '')}</span>${b.is_pro ? ' <span style="color:#d97706;font-size:10px;font-weight:700">PRO</span>' : ''}</td>
+        <td>
+          <div style="font-weight:600;font-size:13px;margin-bottom:3px">${esc(b.bug_title || b.description?.slice(0,50) || '–')}</div>
+          <span style="padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;${sevStyle}">${sev.toUpperCase()}</span>
+        </td>
+        <td class="text-truncate" style="max-width:180px" title="${esc(b.description || '')}">${esc(b.description || '–')}</td>
+        <td class="text-truncate" style="max-width:160px;font-family:monospace;font-size:11px" title="${esc(b.steps_to_reproduce || '')}">${esc(b.steps_to_reproduce || '–')}</td>
+        <td style="color:#78716c;font-size:11px">${esc(b.page || '–')}</td>
+        <td style="color:#78716c;white-space:nowrap">${fmtDate(b.created_at)}</td>
+        <td>
+          <span style="padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;${statusStyle}">${status.replace('_',' ').toUpperCase()}</span>
+          <br>
+          <button onclick="updateBugStatus('${esc(b.id)}','${nextStatus}')" style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid #e7e5e4;background:#fff;cursor:pointer;font-weight:600">${nextLabel}</button>
+        </td>
+      </tr>`;
+    }).join('') : '<tr class="loading-row"><td colspan="7">No bug reports found</td></tr>';
+  }
+
+  // ── Utils ─────────────────────────────────────────────────────────────────
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '–';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Budget & EMI Manager - Code Explanation</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #0288d1;
+            border-bottom: 3px solid #0288d1;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #26a69a;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+            margin-top: 30px;
+        }
+        h3 {
+            color: #424242;
+            margin-top: 20px;
+        }
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: Courier New, monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-left: 4px solid #0288d1;
+            overflow-x: auto;
+            border-radius: 5px;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #0288d1;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        blockquote {
+            border-left: 4px solid #26a69a;
+            padding-left: 20px;
+            margin: 20px 0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<h1>Budget &amp; EMI Manager - Complete Code Explanation Guide</h1>
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#overview--architecture">Overview &amp; Architecture</a></li>
+<li><a href="#backend-code-explanation">Backend Code Explanation</a></li>
+<li><a href="#frontend-code-explanation">Frontend Code Explanation</a></li>
+<li><a href="#database-structure">Database Structure</a></li>
+<li><a href="#complete-flow-examples">Complete Flow Examples</a></li>
+<li><a href="#key-concepts-summary">Key Concepts Summary</a></li>
+</ol>
+<hr />
+<h2>Overview &amp; Architecture</h2>
+<h3>What is this app?</h3>
+<p>The Budget &amp; EMI Manager is a web application that helps you:
+- Manage monthly budgets (income and expenses)
+- Track loan EMIs (Equated Monthly Installments)
+- Get smart recommendations on which EMI to close first
+- Monitor your financial health</p>
+<h3>Architecture (Restaurant Analogy)</h3>
+<p>Think of your app like a restaurant:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Role</th>
+<th>Technology</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Frontend</strong></td>
+<td>Dining area where customers interact</td>
+<td>React (JavaScript)</td>
+</tr>
+<tr>
+<td><strong>Backend</strong></td>
+<td>Kitchen that processes orders</td>
+<td>FastAPI (Python)</td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td>Storage room for ingredients</td>
+<td>MongoDB</td>
+</tr>
+<tr>
+<td><strong>API</strong></td>
+<td>Waiter carrying orders between dining &amp; kitchen</td>
+<td>REST API</td>
+</tr>
+</tbody>
+</table>
+<pre><code>┌─────────────┐         API Calls        ┌─────────────┐
+│  Frontend   │ ◄──────────────────────► │   Backend   │
+│   (React)   │    (HTTP Requests)       │  (FastAPI)  │
+└─────────────┘                          └──────┬──────┘
+                                                 │
+                                                 │ Database Queries
+                                                 ▼
+                                          ┌─────────────┐
+                                          │   MongoDB   │
+                                          │  (Database) │
+                                          └─────────────┘
+</code></pre>
+<hr />
+<h2>Backend Code Explanation</h2>
+<h3>File: <code>/app/backend/server.py</code></h3>
+<h3>Section 1: Imports &amp; Setup (Lines 1-26)</h3>
+<pre><code class="language-python">from fastapi import FastAPI, APIRouter, HTTPException
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+import logging
+from pathlib import Path
+from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional
+import uuid
+from datetime import datetime, timezone, timedelta
+import math
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+# MongoDB connection
+mongo_url = os.environ['MONGO_URL']
+client = AsyncIOMotorClient(mongo_url)
+db = client[os.environ['DB_NAME']]
+
+# Create the main app without a prefix
+app = FastAPI()
+
+# Create a router with the /api prefix
+api_router = APIRouter(prefix=&quot;/api&quot;)
+</code></pre>
+<p><strong>Explanation:</strong></p>
+<ol>
+<li><strong>Line 1-12</strong>: Import necessary libraries</li>
+<li><code>FastAPI</code>: Framework to create web APIs</li>
+<li><code>motor</code>: Async MongoDB driver for Python</li>
+<li><code>pydantic</code>: Data validation using Python type hints</li>
+<li><code>uuid</code>: Generate unique IDs</li>
+<li>
+<p><code>datetime</code>: Handle dates and times</p>
+</li>
+<li>
+<p><strong>Lines 14-15</strong>: Load environment variables</p>
+</li>
+<li>Reads <code>.env</code> file to get secret configurations</li>
+<li>
+<p>Like database URL, passwords, etc.</p>
+</li>
+<li>
+<p><strong>Lines 18-20</strong>: Connect to MongoDB</p>
+</li>
+<li><code>mongo_url</code>: Database connection string</li>
+<li><code>client</code>: Connection to MongoDB server</li>
+<li>
+<p><code>db</code>: Access to specific database</p>
+</li>
+<li>
+<p><strong>Lines 23-26</strong>: Create FastAPI application</p>
+</li>
+<li><code>app</code>: Main application</li>
+<li><code>api_router</code>: All routes will have <code>/api</code> prefix</li>
+<li>Example: <code>/api/categories</code>, <code>/api/emis</code></li>
+</ol>
+<hr />
+<h3>Section 2: Data Models (Blueprints)</h3>
+<p>Models define the structure of your data. Think of them as forms with specific fields.</p>
+<h4>BudgetCategory Model</h4>
+<pre><code class="language-python">class BudgetCategory(BaseModel):
+    model_config = ConfigDict(extra=&quot;ignore&quot;)
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    type: str  # 'income' or 'expense'
+    allocated_amount: float
+    spent_amount: float = 0.0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+</code></pre>
+<p><strong>Field Explanations:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Example</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>"abc-123-xyz"</td>
+<td>Unique identifier (auto-generated)</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>"Salary", "Groceries"</td>
+<td>Category name</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>string</td>
+<td>"income" or "expense"</td>
+<td>Category type</td>
+</tr>
+<tr>
+<td><code>allocated_amount</code></td>
+<td>number</td>
+<td>50000</td>
+<td>Budgeted amount in ₹</td>
+</tr>
+<tr>
+<td><code>spent_amount</code></td>
+<td>number</td>
+<td>3000</td>
+<td>Amount actually spent</td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>datetime</td>
+<td>"2024-01-15T10:30:00"</td>
+<td>When created</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Real Example:</strong></p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;cat-001&quot;,
+  &quot;name&quot;: &quot;Salary&quot;,
+  &quot;type&quot;: &quot;income&quot;,
+  &quot;allocated_amount&quot;: 50000,
+  &quot;spent_amount&quot;: 0,
+  &quot;created_at&quot;: &quot;2024-01-15T10:30:00Z&quot;
+}
+</code></pre>
+<hr />
+<h4>EMI Model</h4>
+<pre><code class="language-python">class EMI(BaseModel):
+    model_config = ConfigDict(extra=&quot;ignore&quot;)
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    loan_name: str
+    principal_amount: float
+    interest_rate: float  # Annual interest rate in percentage
+    monthly_payment: float
+    start_date: str  # YYYY-MM format
+    tenure_months: int
+    remaining_balance: float
+    paid_months: int = 0
+    status: str = &quot;active&quot;  # active, closed
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+</code></pre>
+<p><strong>Field Explanations:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Example</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>"emi-456"</td>
+<td>Unique identifier</td>
+</tr>
+<tr>
+<td><code>loan_name</code></td>
+<td>string</td>
+<td>"Car Loan"</td>
+<td>Name of the loan</td>
+</tr>
+<tr>
+<td><code>principal_amount</code></td>
+<td>number</td>
+<td>500000</td>
+<td>Total loan amount (₹)</td>
+</tr>
+<tr>
+<td><code>interest_rate</code></td>
+<td>number</td>
+<td>10.0</td>
+<td>Interest rate per year (%)</td>
+</tr>
+<tr>
+<td><code>monthly_payment</code></td>
+<td>number</td>
+<td>12000</td>
+<td>Monthly EMI amount (₹)</td>
+</tr>
+<tr>
+<td><code>start_date</code></td>
+<td>string</td>
+<td>"2024-01"</td>
+<td>When loan started</td>
+</tr>
+<tr>
+<td><code>tenure_months</code></td>
+<td>number</td>
+<td>48</td>
+<td>Total months to pay</td>
+</tr>
+<tr>
+<td><code>remaining_balance</code></td>
+<td>number</td>
+<td>492167</td>
+<td>Amount left to pay (₹)</td>
+</tr>
+<tr>
+<td><code>paid_months</code></td>
+<td>number</td>
+<td>1</td>
+<td>How many months paid</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>string</td>
+<td>"active"</td>
+<td>"active" or "closed"</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Real Example:</strong></p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;emi-001&quot;,
+  &quot;loan_name&quot;: &quot;Car Loan&quot;,
+  &quot;principal_amount&quot;: 500000,
+  &quot;interest_rate&quot;: 10,
+  &quot;monthly_payment&quot;: 12000,
+  &quot;start_date&quot;: &quot;2024-01&quot;,
+  &quot;tenure_months&quot;: 48,
+  &quot;remaining_balance&quot;: 492167,
+  &quot;paid_months&quot;: 1,
+  &quot;status&quot;: &quot;active&quot;
+}
+</code></pre>
+<hr />
+<h3>Section 3: API Endpoints (Routes)</h3>
+<p>API endpoints are like menu items in a restaurant. Each one performs a specific task.</p>
+<h4>3.1 Budget Category APIs</h4>
+<p><strong>Create Category</strong></p>
+<pre><code class="language-python">@api_router.post(&quot;/categories&quot;, response_model=BudgetCategory)
+async def create_category(input: BudgetCategoryCreate):
+    category = BudgetCategory(**input.model_dump())
+    doc = category.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.budget_categories.insert_one(doc)
+    return category
+</code></pre>
+<p><strong>What it does:</strong>
+1. Receives category data from frontend
+2. Creates a BudgetCategory object
+3. Saves it to MongoDB
+4. Returns the created category</p>
+<p><strong>Example Request:</strong></p>
+<pre><code>POST /api/categories
+Body: {
+  &quot;name&quot;: &quot;Salary&quot;,
+  &quot;type&quot;: &quot;income&quot;,
+  &quot;allocated_amount&quot;: 50000
+}
+</code></pre>
+<p><strong>Example Response:</strong></p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;cat-001&quot;,
+  &quot;name&quot;: &quot;Salary&quot;,
+  &quot;type&quot;: &quot;income&quot;,
+  &quot;allocated_amount&quot;: 50000,
+  &quot;spent_amount&quot;: 0,
+  &quot;created_at&quot;: &quot;2024-01-15T10:30:00Z&quot;
+}
+</code></pre>
+<hr />
+<p><strong>Get All Categories</strong></p>
+<pre><code class="language-python">@api_router.get(&quot;/categories&quot;, response_model=List[BudgetCategory])
+async def get_categories():
+    categories = await db.budget_categories.find({}, {&quot;_id&quot;: 0}).to_list(1000)
+    for cat in categories:
+        if isinstance(cat['created_at'], str):
+            cat['created_at'] = datetime.fromisoformat(cat['created_at'])
+    return categories
+</code></pre>
+<p><strong>What it does:</strong>
+1. Queries MongoDB for all categories
+2. Excludes MongoDB's internal <code>_id</code> field
+3. Converts date strings back to datetime objects
+4. Returns list of all categories</p>
+<p><strong>Example Request:</strong></p>
+<pre><code>GET /api/categories
+</code></pre>
+<p><strong>Example Response:</strong></p>
+<pre><code class="language-json">[
+  {
+    &quot;id&quot;: &quot;cat-001&quot;,
+    &quot;name&quot;: &quot;Salary&quot;,
+    &quot;type&quot;: &quot;income&quot;,
+    &quot;allocated_amount&quot;: 50000,
+    &quot;spent_amount&quot;: 0
+  },
+  {
+    &quot;id&quot;: &quot;cat-002&quot;,
+    &quot;name&quot;: &quot;Groceries&quot;,
+    &quot;type&quot;: &quot;expense&quot;,
+    &quot;allocated_amount&quot;: 10000,
+    &quot;spent_amount&quot;: 3000
+  }
+]
+</code></pre>
+<hr />
+<p><strong>Budget Summary</strong></p>
+<pre><code class="language-python">@api_router.get(&quot;/budget-summary&quot;)
+async def get_budget_summary():
+    categories = await db.budget_categories.find({}, {&quot;_id&quot;: 0}).to_list(1000)
+    emis = await db.emis.find({&quot;status&quot;: &quot;active&quot;}, {&quot;_id&quot;: 0}).to_list(1000)
+
+    total_income = sum(cat['allocated_amount'] for cat in categories if cat['type'] == 'income')
+    total_expenses = sum(cat['allocated_amount'] for cat in categories if cat['type'] == 'expense')
+    total_spent = sum(cat.get('spent_amount', 0) for cat in categories if cat['type'] == 'expense')
+    total_emi = sum(emi['monthly_payment'] for emi in emis)
+
+    remaining_budget = total_income - total_expenses - total_emi - total_spent
+
+    return {
+        &quot;total_income&quot;: total_income,
+        &quot;total_expenses&quot;: total_expenses,
+        &quot;total_spent&quot;: total_spent,
+        &quot;total_emi&quot;: total_emi,
+        &quot;remaining_budget&quot;: remaining_budget,
+        &quot;active_emis&quot;: len(emis)
+    }
+</code></pre>
+<p><strong>What it does:</strong>
+1. Gets all budget categories
+2. Gets all active EMIs
+3. Calculates:
+   - Total income
+   - Total budgeted expenses
+   - Total spent so far
+   - Total EMI payments
+   - Remaining budget = Income - Expenses - EMIs - Spent</p>
+<p><strong>Calculation Example:</strong></p>
+<pre><code>Total Income:      ₹50,000 (Salary)
+Total Expenses:    ₹15,000 (Groceries + Bills)
+Total Spent:       ₹3,000  (Actual spending)
+Total EMI:         ₹12,000 (Car Loan)
+─────────────────────────────
+Remaining Budget:  ₹20,000
+</code></pre>
+<hr />
+<h4>3.2 EMI APIs</h4>
+<p><strong>Create EMI</strong></p>
+<pre><code class="language-python">@api_router.post(&quot;/emis&quot;, response_model=EMI)
+async def create_emi(input: EMICreate):
+    emi = EMI(
+        **input.model_dump(),
+        remaining_balance=input.principal_amount
+    )
+    doc = emi.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.emis.insert_one(doc)
+    return emi
+</code></pre>
+<p><strong>What it does:</strong>
+1. Receives EMI details
+2. Sets <code>remaining_balance</code> = <code>principal_amount</code> (initially)
+3. Saves to MongoDB
+4. Returns created EMI</p>
+<p><strong>Example Request:</strong></p>
+<pre><code>POST /api/emis
+Body: {
+  &quot;loan_name&quot;: &quot;Car Loan&quot;,
+  &quot;principal_amount&quot;: 500000,
+  &quot;interest_rate&quot;: 10,
+  &quot;monthly_payment&quot;: 12000,
+  &quot;start_date&quot;: &quot;2024-01&quot;,
+  &quot;tenure_months&quot;: 48
+}
+</code></pre>
+<hr />
+<p><strong>Record EMI Payment</strong> (Most Important!)</p>
+<pre><code class="language-python">@api_router.post(&quot;/emis/{emi_id}/payment&quot;, response_model=EMIPayment)
+async def record_emi_payment(emi_id: str, input: EMIPaymentCreate):
+    emi_doc = await db.emis.find_one({&quot;id&quot;: emi_id}, {&quot;_id&quot;: 0})
+    if not emi_doc:
+        raise HTTPException(status_code=404, detail=&quot;EMI not found&quot;)
+
+    # Calculate interest and principal components
+    monthly_interest_rate = emi_doc['interest_rate'] / 12 / 100
+    interest_paid = emi_doc['remaining_balance'] * monthly_interest_rate
+    principal_paid = input.amount - interest_paid
+
+    # Update EMI
+    new_balance = max(0, emi_doc['remaining_balance'] - principal_paid)
+    new_paid_months = emi_doc['paid_months'] + 1
+    new_status = &quot;closed&quot; if new_balance &lt;= 0 or new_paid_months &gt;= emi_doc['tenure_months'] else &quot;active&quot;
+
+    await db.emis.update_one(
+        {&quot;id&quot;: emi_id},
+        {&quot;$set&quot;: {
+            &quot;remaining_balance&quot;: new_balance,
+            &quot;paid_months&quot;: new_paid_months,
+            &quot;status&quot;: new_status
+        }}
+    )
+
+    # Record payment
+    payment = EMIPayment(
+        emi_id=emi_id,
+        amount=input.amount,
+        payment_date=input.payment_date,
+        principal_paid=principal_paid,
+        interest_paid=interest_paid
+    )
+    doc = payment.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.emi_payments.insert_one(doc)
+
+    return payment
+</code></pre>
+<p><strong>Step-by-Step Calculation:</strong></p>
+<p>Let's say you're paying your first Car Loan EMI:</p>
+<pre><code>Given:
+- Remaining Balance: ₹500,000
+- Interest Rate: 10% per year
+- Monthly Payment: ₹12,000
+
+Step 1: Calculate monthly interest rate
+monthly_interest_rate = 10 / 12 / 100 = 0.00833
+
+Step 2: Calculate interest for this month
+interest_paid = ₹500,000 × 0.00833 = ₹4,167
+
+Step 3: Calculate principal paid
+principal_paid = ₹12,000 - ₹4,167 = ₹7,833
+
+Step 4: Calculate new balance
+new_balance = ₹500,000 - ₹7,833 = ₹492,167
+
+Step 5: Increment paid months
+paid_months = 0 + 1 = 1
+
+Step 6: Check if loan is complete
+if new_balance &lt;= 0 or paid_months &gt;= 48:
+    status = &quot;closed&quot;
+else:
+    status = &quot;active&quot;  ✓
+</code></pre>
+<p><strong>Visual Representation:</strong></p>
+<pre><code>Payment Breakdown (Month 1):
+┌────────────────────────────┐
+│ Total Payment: ₹12,000     │
+├────────────────────────────┤
+│ Interest:      ₹4,167  35% │ ████████
+│ Principal:     ₹7,833  65% │ ████████████████
+└────────────────────────────┘
+
+After 1st Payment:
+Original Balance:    ₹500,000 ████████████████████████
+Remaining Balance:   ₹492,167 ███████████████████████░
+Paid Off:            ₹7,833   █
+</code></pre>
+<hr />
+<p><strong>EMI Recommendations</strong> (Smart Algorithm)</p>
+<pre><code class="language-python">@api_router.get(&quot;/emis/recommendations&quot;)
+async def get_emi_recommendations():
+    emis = await db.emis.find({&quot;status&quot;: &quot;active&quot;}, {&quot;_id&quot;: 0}).to_list(1000)
+
+    recommendations = []
+    for emi in emis:
+        # Calculate total interest to be paid
+        remaining_months = emi['tenure_months'] - emi['paid_months']
+        total_interest = (emi['monthly_payment'] * remaining_months) - emi['remaining_balance']
+
+        # Calculate savings if paid off now
+        savings = total_interest
+
+        recommendations.append({
+            &quot;emi_id&quot;: emi['id'],
+            &quot;loan_name&quot;: emi['loan_name'],
+            &quot;interest_rate&quot;: emi['interest_rate'],
+            &quot;remaining_balance&quot;: emi['remaining_balance'],
+            &quot;remaining_months&quot;: remaining_months,
+            &quot;monthly_payment&quot;: emi['monthly_payment'],
+            &quot;total_interest_remaining&quot;: total_interest,
+            &quot;savings_if_closed_now&quot;: savings,
+            &quot;priority_score&quot;: emi['interest_rate']
+        })
+
+    # Sort by interest rate (highest first)
+    recommendations.sort(key=lambda x: x['priority_score'], reverse=True)
+
+    return recommendations
+</code></pre>
+<p><strong>Example Scenario:</strong></p>
+<p>You have 3 active loans:</p>
+<pre><code>Loan 1: Car Loan
+- Interest Rate: 12%
+- Remaining Balance: ₹300,000
+- Remaining Months: 24
+- Monthly Payment: ₹14,000
+
+Calculation:
+Total to pay = ₹14,000 × 24 = ₹336,000
+Total interest = ₹336,000 - ₹300,000 = ₹36,000
+Savings if closed now = ₹36,000
+
+─────────────────────────────────────
+
+Loan 2: Personal Loan
+- Interest Rate: 15%
+- Remaining Balance: ₹200,000
+- Remaining Months: 18
+- Monthly Payment: ₹12,000
+
+Calculation:
+Total to pay = ₹12,000 × 18 = ₹216,000
+Total interest = ₹216,000 - ₹200,000 = ₹16,000
+Savings if closed now = ₹16,000
+
+─────────────────────────────────────
+
+Loan 3: Home Loan
+- Interest Rate: 8.5%
+- Remaining Balance: ₹2,500,000
+- Remaining Months: 180
+- Monthly Payment: ₹25,000
+
+Calculation:
+Total to pay = ₹25,000 × 180 = ₹4,500,000
+Total interest = ₹4,500,000 - ₹2,500,000 = ₹2,000,000
+Savings if closed now = ₹2,000,000
+
+─────────────────────────────────────
+
+Recommendation Order (Highest Interest First):
+1. ⭐ Personal Loan (15%) - Close this first!
+2. Car Loan (12%) - Close this second
+3. Home Loan (8.5%) - Close this last
+</code></pre>
+<p><strong>Why close highest interest first?</strong>
+- You save more money on interest
+- Example: If you have ₹200,000 extra:
+  - Closing Personal Loan saves ₹16,000 in interest
+  - Putting same amount in Home Loan saves only ₹8,000</p>
+<hr />
+<h2>Frontend Code Explanation</h2>
+<h3>File Structure</h3>
+<pre><code>/app/frontend/src/
+├── App.js              # Main router
+├── App.css             # Global styles
+├── pages/
+│   ├── Dashboard.js    # Home page
+│   ├── BudgetManager.js # Budget management
+│   ├── EMIManager.js   # EMI management
+│   └── Transactions.js # Transaction tracking
+└── components/
+    └── ui/             # Reusable UI components
+</code></pre>
+<hr />
+<h3>Section 1: App.js - Main Router</h3>
+<pre><code class="language-javascript">import { useState, useEffect } from &quot;react&quot;;
+import { BrowserRouter, Routes, Route } from &quot;react-router-dom&quot;;
+import Dashboard from &quot;@/pages/Dashboard&quot;;
+import BudgetManager from &quot;@/pages/BudgetManager&quot;;
+import EMIManager from &quot;@/pages/EMIManager&quot;;
+import Transactions from &quot;@/pages/Transactions&quot;;
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+export const API = `${BACKEND_URL}/api`;
+
+function App() {
+  return (
+    &lt;div className=&quot;App&quot;&gt;
+      &lt;BrowserRouter&gt;
+        &lt;Routes&gt;
+          &lt;Route path=&quot;/&quot; element={&lt;Dashboard /&gt;} /&gt;
+          &lt;Route path=&quot;/budget&quot; element={&lt;BudgetManager /&gt;} /&gt;
+          &lt;Route path=&quot;/emis&quot; element={&lt;EMIManager /&gt;} /&gt;
+          &lt;Route path=&quot;/transactions&quot; element={&lt;Transactions /&gt;} /&gt;
+        &lt;/Routes&gt;
+      &lt;/BrowserRouter&gt;
+    &lt;/div&gt;
+  );
+}
+</code></pre>
+<p><strong>Explanation:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>What it does</th>
+<th>Analogy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BrowserRouter</code></td>
+<td>Enables navigation</td>
+<td>Building directory</td>
+</tr>
+<tr>
+<td><code>Routes</code></td>
+<td>Container for all routes</td>
+<td>List of floors</td>
+</tr>
+<tr>
+<td><code>Route path="/"</code></td>
+<td>Maps URL to component</td>
+<td>Floor 1 → Lobby</td>
+</tr>
+<tr>
+<td><code>BACKEND_URL</code></td>
+<td>Backend server address</td>
+<td>Kitchen location</td>
+</tr>
+</tbody>
+</table>
+<p><strong>How routing works:</strong></p>
+<pre><code>User visits:              Browser shows:
+─────────────────────────────────────────
+http://app.com/           → Dashboard
+http://app.com/budget     → BudgetManager
+http://app.com/emis       → EMIManager
+http://app.com/transactions → Transactions
+</code></pre>
+<hr />
+<h3>Section 2: Dashboard.js</h3>
+<pre><code class="language-javascript">const Dashboard = () =&gt; {
+  const [summary, setSummary] = useState(null);
+  const [emis, setEmis] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() =&gt; {
+    fetchData();
+  }, []);
+
+  const fetchData = async () =&gt; {
+    try {
+      const [summaryRes, emisRes, recsRes] = await Promise.all([
+        axios.get(`${API}/budget-summary`),
+        axios.get(`${API}/emis`),
+        axios.get(`${API}/emis/recommendations`)
+      ]);
+      setSummary(summaryRes.data);
+      setEmis(emisRes.data.filter(e =&gt; e.status === 'active'));
+      setRecommendations(recsRes.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setLoading(false);
+    }
+  };
+
+  return (
+    // Display dashboard UI
+  );
+};
+</code></pre>
+<p><strong>Key Concepts:</strong></p>
+<p><strong>1. useState - Creating Variables</strong></p>
+<pre><code class="language-javascript">const [summary, setSummary] = useState(null);
+</code></pre>
+<p>Think of it as creating a box:
+- <code>summary</code>: The box that holds data
+- <code>setSummary</code>: Function to put new data in the box
+- <code>null</code>: Initial value (empty box)</p>
+<p><strong>2. useEffect - Running Code on Page Load</strong></p>
+<pre><code class="language-javascript">useEffect(() =&gt; {
+  fetchData();  // Runs when page loads
+}, []);  // Empty array = run only once
+</code></pre>
+<p><strong>3. Promise.all - Multiple API Calls at Once</strong></p>
+<pre><code class="language-javascript">const [res1, res2, res3] = await Promise.all([
+  axios.get('/api1'),  // Call 1
+  axios.get('/api2'),  // Call 2
+  axios.get('/api3')   // Call 3
+]);
+// All 3 calls happen simultaneously!
+</code></pre>
+<p><strong>Timing Comparison:</strong></p>
+<pre><code>Sequential (one after another):
+Call 1: ████████ (2s)
+Call 2:          ████████ (2s)
+Call 3:                   ████████ (2s)
+Total:  ████████████████████████ (6s)
+
+Parallel (Promise.all):
+Call 1: ████████ (2s)
+Call 2: ████████ (2s)
+Call 3: ████████ (2s)
+Total:  ████████ (2s)  ← 3x faster!
+</code></pre>
+<hr />
+<h3>Section 3: BudgetManager.js</h3>
+<pre><code class="language-javascript">const BudgetManager = () =&gt; {
+  const [categories, setCategories] = useState([]);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'expense',
+    allocated_amount: ''
+  });
+
+  const handleSubmit = async (e) =&gt; {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/categories`, {
+        name: formData.name,
+        type: formData.type,
+        allocated_amount: parseFloat(formData.allocated_amount)
+      });
+      toast.success('Category added successfully');
+      setIsDialogOpen(false);
+      setFormData({ name: '', type: 'expense', allocated_amount: '' });
+      fetchCategories();
+    } catch (error) {
+      console.error('Error creating category:', error);
+      toast.error('Failed to add category');
+    }
+  };
+
+  const handleDelete = async (id) =&gt; {
+    try {
+      await axios.delete(`${API}/categories/${id}`);
+      toast.success('Category deleted');
+      fetchCategories();
+    } catch (error) {
+      toast.error('Failed to delete category');
+    }
+  };
+};
+</code></pre>
+<p><strong>Form Handling Flow:</strong></p>
+<pre><code>Step 1: User fills form
+┌──────────────────────────┐
+│ Name: Groceries          │
+│ Type: Expense ▼          │
+│ Amount: 10000            │
+│                          │
+│      [Add Category]      │
+└──────────────────────────┘
+
+Step 2: User clicks &quot;Add Category&quot;
+→ handleSubmit() is called
+
+Step 3: Prevent default form submission
+e.preventDefault()  // Don't reload page!
+
+Step 4: Send data to backend
+axios.post('/api/categories', {
+  name: &quot;Groceries&quot;,
+  type: &quot;expense&quot;,
+  allocated_amount: 10000
+})
+
+Step 5: Backend processes and saves
+→ MongoDB now has new category
+
+Step 6: Show success message
+toast.success('Category added')
+
+Step 7: Clear form
+setFormData({
+  name: '',
+  type: 'expense',
+  allocated_amount: ''
+})
+
+Step 8: Refresh list
+fetchCategories()  // Show updated list
+</code></pre>
+<hr />
+<h3>Section 4: EMIManager.js</h3>
+<pre><code class="language-javascript">const handlePayment = async (e) =&gt; {
+  e.preventDefault();
+  try {
+    await axios.post(`${API}/emis/${selectedEmi.id}/payment`, {
+      amount: parseFloat(paymentData.amount),
+      payment_date: paymentData.payment_date
+    });
+    toast.success('Payment recorded successfully');
+    setIsPaymentDialogOpen(false);
+    fetchEmis();
+  } catch (error) {
+    console.error('Error recording payment:', error);
+    toast.error('Failed to record payment');
+  }
+};
+</code></pre>
+<p><strong>Recording Payment Flow:</strong></p>
+<pre><code>┌─────────────────────────────────────┐
+│ Step 1: User clicks &quot;Record Payment&quot;│
+└─────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│ Step 2: Dialog opens with EMI info  │
+│                                     │
+│ Car Loan                            │
+│ Monthly Payment: ₹12,000            │
+│                                     │
+│ Amount: [12000      ]               │
+│ Date:   [2024-01-15 ]               │
+│                                     │
+│ [Record Payment] [Cancel]           │
+└─────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│ Step 3: Submit to backend           │
+│ POST /api/emis/emi-001/payment      │
+└─────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│ Step 4: Backend calculates:         │
+│ - Interest: ₹4,167                  │
+│ - Principal: ₹7,833                 │
+│ - New balance: ₹492,167             │
+│ - Paid months: 1                    │
+└─────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│ Step 5: Update UI                   │
+│ - Show success toast                │
+│ - Close dialog                      │
+│ - Refresh EMI list                  │
+│ - Progress bar updates              │
+└─────────────────────────────────────┘
+</code></pre>
+<hr />
+<h2>Database Structure</h2>
+<p>Your MongoDB database has these collections (like Excel sheets):</p>
+<h3>Collection 1: budget_categories</h3>
+<pre><code class="language-json">{
+  &quot;_id&quot;: ObjectId(&quot;...&quot;),  // MongoDB internal ID
+  &quot;id&quot;: &quot;cat-001&quot;,
+  &quot;name&quot;: &quot;Salary&quot;,
+  &quot;type&quot;: &quot;income&quot;,
+  &quot;allocated_amount&quot;: 50000,
+  &quot;spent_amount&quot;: 0,
+  &quot;created_at&quot;: &quot;2024-01-15T10:30:00Z&quot;
+}
+</code></pre>
+<h3>Collection 2: emis</h3>
+<pre><code class="language-json">{
+  &quot;_id&quot;: ObjectId(&quot;...&quot;),
+  &quot;id&quot;: &quot;emi-001&quot;,
+  &quot;loan_name&quot;: &quot;Car Loan&quot;,
+  &quot;principal_amount&quot;: 500000,
+  &quot;interest_rate&quot;: 10,
+  &quot;monthly_payment&quot;: 12000,
+  &quot;start_date&quot;: &quot;2024-01&quot;,
+  &quot;tenure_months&quot;: 48,
+  &quot;remaining_balance&quot;: 492167,
+  &quot;paid_months&quot;: 1,
+  &quot;status&quot;: &quot;active&quot;,
+  &quot;created_at&quot;: &quot;2024-01-15T10:30:00Z&quot;
+}
+</code></pre>
+<h3>Collection 3: emi_payments</h3>
+<pre><code class="language-json">{
+  &quot;_id&quot;: ObjectId(&quot;...&quot;),
+  &quot;id&quot;: &quot;pay-001&quot;,
+  &quot;emi_id&quot;: &quot;emi-001&quot;,
+  &quot;amount&quot;: 12000,
+  &quot;payment_date&quot;: &quot;2024-01-15&quot;,
+  &quot;principal_paid&quot;: 7833,
+  &quot;interest_paid&quot;: 4167,
+  &quot;created_at&quot;: &quot;2024-01-15T10:30:00Z&quot;
+}
+</code></pre>
+<h3>Collection 4: transactions</h3>
+<pre><code class="language-json">{
+  &quot;_id&quot;: ObjectId(&quot;...&quot;),
+  &quot;id&quot;: &quot;txn-001&quot;,
+  &quot;category_id&quot;: &quot;cat-002&quot;,
+  &quot;category_name&quot;: &quot;Groceries&quot;,
+  &quot;amount&quot;: 3000,
+  &quot;description&quot;: &quot;Weekly shopping&quot;,
+  &quot;type&quot;: &quot;expense&quot;,
+  &quot;date&quot;: &quot;2024-01-15&quot;,
+  &quot;created_at&quot;: &quot;2024-01-15T10:30:00Z&quot;
+}
+</code></pre>
+<hr />
+<h2>Complete Flow Examples</h2>
+<h3>Example 1: First Time User Journey</h3>
+<pre><code>┌──────────────────────────────────────────────────────────┐
+│ 1. User opens app: http://localhost:3000                │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 2. Frontend (App.js) loads                              │
+│    → Shows Dashboard component                          │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 3. Dashboard.js runs useEffect()                        │
+│    → Calls fetchData()                                  │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 4. Makes 3 API calls simultaneously:                    │
+│    ① GET /api/budget-summary                            │
+│    ② GET /api/emis                                      │
+│    ③ GET /api/emis/recommendations                      │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 5. Backend (server.py) processes requests              │
+│    → Queries MongoDB                                    │
+│    → Returns data (all empty for first time)           │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 6. Frontend receives responses:                         │
+│    ① summary = {income: 0, expenses: 0, ...}            │
+│    ② emis = []                                          │
+│    ③ recommendations = []                               │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 7. Dashboard displays:                                  │
+│    ┌────────────────────────────────────────┐          │
+│    │ Total Income: ₹0                       │          │
+│    │ Total Expenses: ₹0                     │          │
+│    │ EMI Payments: ₹0                       │          │
+│    │ Remaining Budget: ₹0                   │          │
+│    │                                        │          │
+│    │ Active EMIs (0)                        │          │
+│    │ → No active EMIs                       │          │
+│    │                                        │          │
+│    │ Recommendations                         │          │
+│    │ → No recommendations                    │          │
+│    └────────────────────────────────────────┘          │
+└──────────────────────────────────────────────────────────┘
+</code></pre>
+<hr />
+<h3>Example 2: Adding First Budget Category</h3>
+<pre><code>┌──────────────────────────────────────────────────────────┐
+│ 1. User clicks &quot;Budget&quot; in navigation                   │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 2. Browser navigates to /budget                         │
+│    → BudgetManager component loads                      │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 3. Page shows:                                          │
+│    ┌────────────────────────────────────────┐          │
+│    │ Budget Manager    [+ Add Category]     │          │
+│    │                                        │          │
+│    │ Income Sources                         │          │
+│    │ → No income sources added              │          │
+│    │                                        │          │
+│    │ Expense Categories                     │          │
+│    │ → No expense categories added          │          │
+│    └────────────────────────────────────────┘          │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 4. User clicks &quot;Add Category&quot; button                    │
+│    → Dialog opens                                       │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 5. User fills form:                                     │
+│    ┌────────────────────────────────────────┐          │
+│    │ Add Budget Category                    │          │
+│    │                                        │          │
+│    │ Name: [Salary            ]             │          │
+│    │ Type: [Income ▼          ]             │          │
+│    │ Amount: [50000           ]             │          │
+│    │                                        │          │
+│    │ [Add Category] [Cancel]                │          │
+│    └────────────────────────────────────────┘          │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 6. User clicks &quot;Add Category&quot;                           │
+│    → handleSubmit() is called                           │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 7. Frontend sends POST request:                         │
+│    POST /api/categories                                 │
+│    Body: {                                              │
+│      name: &quot;Salary&quot;,                                    │
+│      type: &quot;income&quot;,                                    │
+│      allocated_amount: 50000                            │
+│    }                                                    │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 8. Backend (create_category) receives request          │
+│    → Creates BudgetCategory object:                     │
+│      {                                                  │
+│        id: &quot;cat-001&quot;,                                   │
+│        name: &quot;Salary&quot;,                                  │
+│        type: &quot;income&quot;,                                  │
+│        allocated_amount: 50000,                         │
+│        spent_amount: 0,                                 │
+│        created_at: &quot;2024-01-15T10:30:00Z&quot;               │
+│      }                                                  │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 9. Backend saves to MongoDB:                            │
+│    db.budget_categories.insert_one(...)                 │
+│    → Document saved successfully                        │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 10. Backend returns success response:                   │
+│     Status: 200 OK                                      │
+│     Body: { id: &quot;cat-001&quot;, name: &quot;Salary&quot;, ... }        │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 11. Frontend receives response:                         │
+│     → Shows success toast: &quot;Category added&quot;             │
+│     → Closes dialog                                     │
+│     → Clears form                                       │
+│     → Calls fetchCategories()                           │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ 12. Page refreshes with new data:                       │
+│     ┌────────────────────────────────────────┐          │
+│     │ Income Sources                         │          │
+│     │ ┌──────────────────────────────────┐  │          │
+│     │ │ Salary              ₹50,000 [🗑]│  │          │
+│     │ └──────────────────────────────────┘  │          │
+│     └────────────────────────────────────────┘          │
+└──────────────────────────────────────────────────────────┘
+</code></pre>
+<hr />
+<h3>Example 3: Recording EMI Payment with Full Calculation</h3>
+<pre><code>Starting State:
+EMI: Car Loan
+- Principal: ₹500,000 (original)
+- Remaining: ₹500,000
+- Interest Rate: 10% per year
+- Monthly Payment: ₹12,000
+- Paid Months: 0
+- Status: active
+
+┌──────────────────────────────────────────────────────────┐
+│ Step 1: User clicks &quot;Record Payment&quot;                    │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 2: Dialog shows with prefilled amount              │
+│         Amount: ₹12,000 (monthly payment)               │
+│         Date: 2024-01-15 (today)                        │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 3: User clicks &quot;Record Payment&quot;                    │
+│         → handlePayment() called                        │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 4: Frontend sends request                          │
+│         POST /api/emis/emi-001/payment                  │
+│         Body: {                                         │
+│           amount: 12000,                                │
+│           payment_date: &quot;2024-01-15&quot;                    │
+│         }                                               │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 5: Backend retrieves EMI from database             │
+│         db.emis.find_one({id: &quot;emi-001&quot;})               │
+│         → Found EMI                                     │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 6: Backend calculates payment breakdown            │
+│                                                         │
+│ A. Monthly interest rate                               │
+│    = Annual rate / 12 / 100                            │
+│    = 10 / 12 / 100                                     │
+│    = 0.00833 (0.833%)                                  │
+│                                                         │
+│ B. Interest for this month                             │
+│    = Remaining balance × Monthly rate                  │
+│    = ₹500,000 × 0.00833                                │
+│    = ₹4,167                                            │
+│                                                         │
+│ C. Principal payment                                    │
+│    = Total payment - Interest                          │
+│    = ₹12,000 - ₹4,167                                  │
+│    = ₹7,833                                            │
+│                                                         │
+│ D. New remaining balance                               │
+│    = Old balance - Principal paid                      │
+│    = ₹500,000 - ₹7,833                                 │
+│    = ₹492,167                                          │
+│                                                         │
+│ E. New paid months                                     │
+│    = Old paid months + 1                               │
+│    = 0 + 1                                             │
+│    = 1                                                 │
+│                                                         │
+│ F. Check status                                        │
+│    if new_balance &lt;= 0 or paid_months &gt;= 48:          │
+│       status = &quot;closed&quot;                                │
+│    else:                                               │
+│       status = &quot;active&quot; ✓                              │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 7: Backend updates EMI in database                │
+│         db.emis.update_one(                             │
+│           {id: &quot;emi-001&quot;},                              │
+│           {$set: {                                      │
+│             remaining_balance: 492167,                  │
+│             paid_months: 1,                             │
+│             status: &quot;active&quot;                            │
+│           }}                                            │
+│         )                                               │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 8: Backend records payment details                │
+│         db.emi_payments.insert_one({                    │
+│           id: &quot;pay-001&quot;,                                │
+│           emi_id: &quot;emi-001&quot;,                            │
+│           amount: 12000,                                │
+│           payment_date: &quot;2024-01-15&quot;,                   │
+│           principal_paid: 7833,                         │
+│           interest_paid: 4167,                          │
+│           created_at: &quot;2024-01-15T10:30:00Z&quot;            │
+│         })                                              │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 9: Backend returns success                         │
+│         Status: 200 OK                                  │
+│         Body: {                                         │
+│           id: &quot;pay-001&quot;,                                │
+│           emi_id: &quot;emi-001&quot;,                            │
+│           amount: 12000,                                │
+│           principal_paid: 7833,                         │
+│           interest_paid: 4167,                          │
+│           payment_date: &quot;2024-01-15&quot;                    │
+│         }                                               │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 10: Frontend updates UI                            │
+│          → Shows success toast                          │
+│          → Closes dialog                                │
+│          → Calls fetchEmis()                            │
+└──────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Step 11: Updated EMI display                            │
+│          ┌──────────────────────────────────┐           │
+│          │ Car Loan                         │           │
+│          │ Interest: 10% | Paid: 1/48 months│           │
+│          │                                  │           │
+│          │ Monthly: ₹12,000                 │           │
+│          │ Remaining: ₹492,167              │           │
+│          │ Progress: 2%                     │           │
+│          │                                  │           │
+│          │ ████░░░░░░░░░░░░░░░░░░░░░░      │           │
+│          └──────────────────────────────────┘           │
+└──────────────────────────────────────────────────────────┘
+
+End State:
+EMI: Car Loan
+- Principal: ₹500,000 (original)
+- Remaining: ₹492,167 ← UPDATED
+- Interest Rate: 10% per year
+- Monthly Payment: ₹12,000
+- Paid Months: 1 ← UPDATED
+- Status: active
+</code></pre>
+<hr />
+<h2>Key Concepts Summary</h2>
+<h3>1. Frontend (React)</h3>
+<ul>
+<li><strong>Component</strong>: Reusable piece of UI</li>
+<li><strong>State</strong>: Data that changes over time</li>
+<li><strong>Props</strong>: Data passed from parent to child</li>
+<li><strong>Hooks</strong>: Special functions (useState, useEffect)</li>
+<li><strong>Routing</strong>: Navigation between pages</li>
+</ul>
+<h3>2. Backend (FastAPI)</h3>
+<ul>
+<li><strong>Endpoint</strong>: URL that performs a specific task</li>
+<li><strong>Request</strong>: Data sent from frontend to backend</li>
+<li><strong>Response</strong>: Data sent from backend to frontend</li>
+<li><strong>Model</strong>: Structure/blueprint for data</li>
+<li><strong>Async</strong>: Non-blocking operations (can handle multiple requests)</li>
+</ul>
+<h3>3. Database (MongoDB)</h3>
+<ul>
+<li><strong>Collection</strong>: Like a table in Excel</li>
+<li><strong>Document</strong>: Like a row in Excel</li>
+<li><strong>Field</strong>: Like a column in Excel</li>
+<li><strong>Query</strong>: Search for specific data</li>
+<li><strong>Update</strong>: Modify existing data</li>
+</ul>
+<h3>4. API Communication</h3>
+<pre><code>Frontend                    Backend                   Database
+   │                           │                          │
+   │─── POST /api/emis ───────&gt;│                          │
+   │                           │                          │
+   │                           │─── insert_one() ────────&gt;│
+   │                           │                          │
+   │                           │&lt;──── Success ────────────│
+   │                           │                          │
+   │&lt;──── Response ────────────│                          │
+   │     (status: 200)         │                          │
+</code></pre>
+<h3>5. Important Terms</h3>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CRUD</strong></td>
+<td>Create, Read, Update, Delete</td>
+<td>Basic database operations</td>
+</tr>
+<tr>
+<td><strong>REST</strong></td>
+<td>Representational State Transfer</td>
+<td>Standard way to design APIs</td>
+</tr>
+<tr>
+<td><strong>JSON</strong></td>
+<td>JavaScript Object Notation</td>
+<td>Data format: <code>{"name": "John"}</code></td>
+</tr>
+<tr>
+<td><strong>Async/Await</strong></td>
+<td>Handle long-running operations</td>
+<td>Database queries, API calls</td>
+</tr>
+<tr>
+<td><strong>Token</strong></td>
+<td>Success/error notification</td>
+<td>"Category added successfully"</td>
+</tr>
+<tr>
+<td><strong>Router</strong></td>
+<td>Manages page navigation</td>
+<td>Different URLs show different pages</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>API Reference Quick Guide</h2>
+<h3>Budget Categories</h3>
+<pre><code>POST   /api/categories          Create new category
+GET    /api/categories          Get all categories
+DELETE /api/categories/{id}     Delete category
+GET    /api/budget-summary      Get financial summary
+</code></pre>
+<h3>EMIs</h3>
+<pre><code>POST   /api/emis                Create new EMI
+GET    /api/emis                Get all EMIs
+PUT    /api/emis/{id}           Update EMI
+DELETE /api/emis/{id}           Delete EMI
+POST   /api/emis/{id}/payment   Record payment
+GET    /api/emis/recommendations Get prepayment advice
+</code></pre>
+<h3>Transactions</h3>
+<pre><code>POST   /api/transactions        Create transaction
+GET    /api/transactions        Get all transactions
+</code></pre>
+<hr />
+<h2>Troubleshooting Guide</h2>
+<h3>Issue: Page shows "Loading..." forever</h3>
+<p><strong>Cause</strong>: Backend not responding</p>
+<p><strong>Check</strong>:
+1. Is backend running? <code>sudo supervisorctl status backend</code>
+2. Check logs: <code>tail -n 50 /var/log/supervisor/backend.err.log</code>
+3. Is MongoDB running? <code>sudo supervisorctl status mongodb</code></p>
+<hr />
+<h3>Issue: "Failed to add category"</h3>
+<p><strong>Cause</strong>: API call failed</p>
+<p><strong>Check</strong>:
+1. Open browser console (F12)
+2. Look for error messages
+3. Check if backend URL is correct in <code>.env</code>
+4. Verify MongoDB connection</p>
+<hr />
+<h3>Issue: EMI calculation seems wrong</h3>
+<p><strong>Formula Check</strong>:</p>
+<pre><code>Monthly Interest Rate = Annual Rate / 12 / 100
+Interest This Month = Remaining Balance × Monthly Rate
+Principal Paid = Payment Amount - Interest
+New Balance = Old Balance - Principal Paid
+</code></pre>
+<hr />
+<h2>Conclusion</h2>
+<p>This Budget &amp; EMI Manager app demonstrates:</p>
+<ol>
+<li><strong>Full-stack development</strong>: Frontend + Backend + Database</li>
+<li><strong>RESTful API design</strong>: Standard endpoints for CRUD operations</li>
+<li><strong>Financial calculations</strong>: Interest, principal, amortization</li>
+<li><strong>State management</strong>: React hooks for data handling</li>
+<li><strong>Database operations</strong>: MongoDB queries and updates</li>
+<li><strong>User experience</strong>: Responsive UI, toast notifications, real-time updates</li>
+</ol>
+<p>The app helps you:
+- Track income and expenses
+- Manage multiple EMIs
+- Get smart recommendations
+- Monitor financial health
+- Plan loan closures strategically</p>
+<hr />
+<p><strong>End of Documentation</strong></p>
+<p><em>Generated: January 2024</em>
+<em>Version: 1.0</em></p>
+</body>
+</html>

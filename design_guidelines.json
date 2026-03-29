@@ -1,0 +1,164 @@
+{
+  "identity": {
+    "persona": "E1",
+    "philosophy": "Fusion over Imitation. Emotion First. Content is King.",
+    "anti_patterns": [
+      "Purple/Teal for CTA",
+      "Inter everywhere",
+      "Center-Everything Disease",
+      "Gradient Overload"
+    ]
+  },
+  "theme": {
+    "name": "Digital Clay",
+    "description": "A warm, trustworthy, and grounded aesthetic that combines the reliability of earth tones with the precision of modern fintech. It evokes the wisdom of 'Chanakya' and the comfort of a 'Mantra'.",
+    "mode": "light",
+    "emotional_archetype": "Organic & Earthy (Trust, Growth, Calm)"
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Outfit, sans-serif",
+      "weights": ["600", "700"],
+      "usage": "All page titles, section headers, and feature names. Use tight tracking.",
+      "fallback": "sans-serif"
+    },
+    "body": {
+      "font_family": "Manrope, sans-serif",
+      "weights": ["400", "500", "600"],
+      "usage": "All paragraphs, data tables, inputs, and labels. Excellent for numbers.",
+      "fallback": "sans-serif"
+    },
+    "mono": {
+      "font_family": "JetBrains Mono, monospace",
+      "usage": "Code snippets, API keys, or technical data if any."
+    }
+  },
+  "colors": {
+    "primary": {
+      "DEFAULT": "#ea580c",
+      "foreground": "#ffffff",
+      "hover": "#c2410c",
+      "description": "Burnt Orange / Terracotta. Use for primary CTAs, active states, and key brand moments."
+    },
+    "secondary": {
+      "DEFAULT": "#0f172a",
+      "foreground": "#f8fafc",
+      "description": "Deep Obsidian / Slate 900. Use for secondary buttons, footer, and strong contrast elements."
+    },
+    "background": {
+      "DEFAULT": "#fffaf5",
+      "paper": "#ffffff",
+      "subtle": "#fdf4eb",
+      "description": "Warm Off-White. Avoid clinical pure white #ffffff for the main background. Use #fffaf5 to give a 'paper' feel."
+    },
+    "text": {
+      "primary": "#1c1917",
+      "secondary": "#57534e",
+      "muted": "#a8a29e",
+      "description": "Warm Greys (Stone). Never use pure black."
+    },
+    "accent": {
+      "success": "#65a30d",
+      "warning": "#d97706",
+      "error": "#dc2626",
+      "info": "#0284c7",
+      "health_score_good": "#84cc16",
+      "health_score_avg": "#eab308",
+      "health_score_bad": "#ef4444"
+    },
+    "border": {
+      "DEFAULT": "#e7e5e4",
+      "focus": "#ea580c"
+    }
+  },
+  "spacing": {
+    "scale": "Generous. Use 2-3x more spacing than typical designs.",
+    "container_padding": "p-6 md:p-12 lg:p-16",
+    "section_gap": "gap-12 md:gap-24",
+    "element_gap": "gap-4 md:gap-8"
+  },
+  "layout": {
+    "grid_system": "Bento Grid",
+    "modes": {
+      "marketing": "Tetris Grid (Asymmetrical, Artful)",
+      "dashboard": "High Density Grid (Functional, Scannable)"
+    },
+    "container_width": "max-w-7xl mx-auto",
+    "border_radius": {
+      "card": "rounded-2xl",
+      "button": "rounded-lg",
+      "input": "rounded-md"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 font-semibold px-8 py-3 rounded-lg",
+      "secondary": "bg-white text-secondary border-2 border-secondary/10 hover:border-secondary/30 hover:bg-secondary/5 transition-all duration-300 font-medium px-8 py-3 rounded-lg",
+      "ghost": "text-secondary hover:bg-secondary/5 hover:text-primary transition-colors duration-200"
+    },
+    "cards": {
+      "style": "Clay / Neumorphic Twist",
+      "classes": "bg-white border border-stone-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow duration-300 rounded-2xl p-6"
+    },
+    "inputs": {
+      "classes": "bg-white border-stone-200 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-md h-12 px-4 transition-all duration-200"
+    },
+    "chat_interface": {
+      "container": "bg-white/50 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl overflow-hidden",
+      "bubble_user": "bg-primary text-white rounded-2xl rounded-tr-sm px-6 py-3 shadow-md max-w-[80%]",
+      "bubble_ai": "bg-white border border-stone-100 text-stone-800 rounded-2xl rounded-tl-sm px-6 py-3 shadow-sm max-w-[80%]"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-xl bg-white/70 border border-white/40 shadow-sm",
+    "gradients": "Use subtle noise textures over solid colors instead of linear gradients.",
+    "shadows": "Soft, diffuse, ambient. shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)]",
+    "micro_interactions": "All interactive elements must have hover/active states. Use 'transform hover:-translate-y-1' for cards."
+  },
+  "images": {
+    "landing_hero": {
+      "url": "https://images.unsplash.com/photo-1659352790654-058e9077a4f4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MjJ8MHwxfHNlYXJjaHwxfHxoYXBweSUyMGluZGlhbiUyMGZhbWlseSUyMGZpbmFuY2lhbCUyMGZyZWVkb218ZW58MHx8fHwxNzcxOTQxNzc5fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Happy Indian family enjoying financial freedom",
+      "usage": "Hero section background or main visual"
+    },
+    "feature_budget": {
+      "url": "https://images.unsplash.com/photo-1632647896118-f13930710cad?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwxfHx5b3VuZyUyMGluZGlhbiUyMGZhbWlseSUyMGZpbmFuY2lhbCUyMGZyZWVkb218ZW58MHx8fHwxNzcxOTQxNzc5fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Young professional managing finances on laptop",
+      "usage": "Budget management feature section"
+    },
+    "feature_home_buying": {
+      "url": "https://images.unsplash.com/photo-1712793042263-cf9eab9a229a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBtaW5pbWFsaXN0JTIwaG9tZSUyMGludGVyaW9yJTIwaW5kaWF8ZW58MHx8fHwxNzcxOTQxNzg4fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Modern minimalist home interior",
+      "usage": "'When to Buy' calculator section"
+    },
+    "abstract_finance": {
+      "url": "https://images.pexels.com/photos/28428584/pexels-photo-28428584.jpeg",
+      "alt": "Abstract 3D shapes representing growth",
+      "usage": "Background elements or decorative cards"
+    }
+  },
+  "instructions_to_main_agent": [
+    "1. INSTALL FONTS: Add 'Outfit' and 'Manrope' from Google Fonts immediately.",
+    "2. UPDATE TAILWIND CONFIG: Replace the default colors with the 'Digital Clay' palette defined above.",
+    "3. REFACTOR CSS: Move custom styles from App.css to Tailwind utility classes or components.",
+    "4. IMPLEMENT LAYOUTS: Use the 'Bento Grid' for the dashboard. Avoid simple rows.",
+    "5. ENHANCE CHATBOT: Build the 'Chanakya' interface with distinct, high-quality message bubbles and a clean input area.",
+    "6. APPLY TEXTURE: Add a subtle noise texture to the background to avoid the 'flat digital' look.",
+    "7. MOBILE FIRST: Ensure all grids collapse to 1 column on mobile.",
+    "8. DATA-TESTID: Add data-testid attributes to all interactive elements."
+  ],
+  "universal_guidelines": [
+    "Avoid 'AI slop' aesthetic (generic centered layouts, gradients).",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "DO NOT apply universal transition (transition: all).",
+    "DO NOT center align the app container.",
+    "Use modern button styles (pill-shaped or sharp).",
+    "NEVER use AI assistant Emoji characters for icons.",
+    "Every interaction needs micro-animations.",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Prioritize using pre-existing components from src/components/ui.",
+    "Components MUST use named exports.",
+    "Use 'sonner' for toasts."
+  ]
+}

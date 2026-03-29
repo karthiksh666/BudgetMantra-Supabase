@@ -45,6 +45,9 @@ class ChangePasswordInput(BaseModel):
     current_password: str
     new_password: str
 
+class ResendOtpInput(BaseModel):
+    email: EmailStr
+
 class ProfileUpdate(BaseModel):
     name: str | None = None
     phone: str | None = None
@@ -202,6 +205,18 @@ async def update_profile(body: ProfileUpdate, current_user: dict = Depends(get_c
         return current_user
     supabase.table("profiles").update(updates).eq("id", current_user["id"]).execute()
     return {**current_user, **updates}
+
+
+@router.put("/change-password")
+async def change_password(body: ChangePasswordInput, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    try:
+        # Verify current password by signing in
+        supabase.auth.sign_in_with_password({"email": current_user["email"], "password": body.current_password})
+        supabase.auth.update_user({"password": body.new_password})
+    except Exception:
+        raise HTTPException(400, "Current password is incorrect")
+    return {"ok": True}
 
 
 @router.post("/onboarding-complete")

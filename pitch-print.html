@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Budget Mantra 2.0 — Investor Pitch</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --orange: #f97316; --orange-dark: #ea6c0a;
+    --stone-900: #1c1917; --stone-800: #292524; --stone-700: #44403c;
+    --stone-400: #a8a29e; --white: #fafaf9;
+  }
+  @page { size: 1280px 720px; margin: 0; }
+  html, body { width: 1280px; background: var(--stone-900); font-family: 'Inter', sans-serif; }
+  .slide {
+    width: 1280px; height: 720px;
+    display: flex; flex-direction: column;
+    page-break-after: always; break-after: page;
+    position: relative; overflow: hidden;
+  }
+  .slide:last-child { page-break-after: avoid; break-after: avoid; }
+
+  .outfit { font-family: 'Outfit', sans-serif; }
+  .tag { display: inline-flex; align-items: center; gap: 6px; background: rgba(249,115,22,0.15); color: var(--orange); border: 1px solid rgba(249,115,22,0.3); padding: 4px 12px; border-radius: 100px; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 100px; font-size: 13px; font-weight: 600; }
+  .chip-orange { background: rgba(249,115,22,0.15); color: var(--orange); border: 1px solid rgba(249,115,22,0.25); }
+  .chip-white  { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.12); }
+  .slide-eyebrow { font-size: 11px; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 12px; }
+  .slide-h1 { font-family: 'Outfit', sans-serif; font-size: 44px; font-weight: 900; color: #fff; line-height: 1.05; letter-spacing: -1px; margin-bottom: 12px; }
+  .slide-h1 span { color: var(--orange); }
+  .slide-desc { font-size: 15px; color: rgba(255,255,255,0.5); line-height: 1.6; max-width: 540px; }
+  .divider { width: 40px; height: 3px; background: var(--orange); border-radius: 2px; margin: 16px 0; }
+
+  /* SLIDE 1 — COVER */
+  #s1 { background: var(--stone-900); justify-content: center; align-items: center; }
+  #s1::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(249,115,22,0.18) 0%, transparent 70%); pointer-events: none; }
+  .cover-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 60px 60px; pointer-events: none; }
+  .cover-logo { width: 64px; height: 64px; border-radius: 20px; background: var(--orange); display: flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 28px; box-shadow: 0 0 60px rgba(249,115,22,0.4); }
+  .cover-title { font-family: 'Outfit', sans-serif; font-size: 80px; font-weight: 900; color: #fff; text-align: center; line-height: 1; letter-spacing: -2px; }
+  .cover-title span { color: var(--orange); }
+  .cover-sub { font-size: 22px; color: rgba(255,255,255,0.55); text-align: center; margin-top: 16px; font-weight: 400; max-width: 500px; }
+  .cover-badge { margin-top: 40px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+  /* SLIDE 2 — PROBLEM */
+  #s2 { background: var(--stone-900); justify-content: center; padding: 0 80px; align-items: flex-start; }
+  .problem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 32px; width: 100%; max-width: 1000px; }
+  .problem-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 28px; position: relative; overflow: hidden; }
+  .problem-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--orange), transparent); }
+  .problem-num { font-family: 'Outfit', sans-serif; font-size: 48px; font-weight: 900; color: var(--orange); line-height: 1; margin-bottom: 8px; }
+  .problem-label { font-size: 14px; color: rgba(255,255,255,0.55); line-height: 1.5; }
+  .problem-label strong { color: #fff; display: block; font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+
+  /* SLIDE 3 — SOLUTION */
+  #s3 { background: linear-gradient(135deg, #0f0e0d 0%, #1c1917 50%, #2a1a0e 100%); justify-content: center; padding: 0 80px; align-items: center; }
+  .solution-wrap { display: flex; gap: 60px; align-items: center; width: 100%; max-width: 1100px; }
+  .solution-left { flex: 1; }
+  .solution-right { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .feat-tile { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; }
+  .feat-icon { font-size: 24px; margin-bottom: 10px; }
+  .feat-title { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .feat-desc { font-size: 11px; color: rgba(255,255,255,0.45); line-height: 1.5; }
+
+  /* SLIDE 4 — PRODUCT */
+  #s4 { background: var(--stone-900); padding: 0 80px; justify-content: center; }
+  .product-row { display: flex; gap: 16px; margin-top: 28px; }
+  .product-screen { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; overflow: hidden; }
+  .screen-header { padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .screen-title { font-size: 12px; font-weight: 700; color: #fff; }
+  .screen-sub { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+  .screen-body { padding: 14px; }
+  .screen-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,0.06); margin-bottom: 8px; overflow: hidden; }
+  .screen-bar-fill { height: 100%; border-radius: 4px; background: var(--orange); }
+  .screen-stat { font-size: 20px; font-weight: 800; color: #fff; font-family: 'Outfit', sans-serif; }
+  .screen-stat-label { font-size: 9px; color: rgba(255,255,255,0.4); }
+  .screen-tag { display: inline-block; padding: 3px 8px; border-radius: 100px; font-size: 9px; font-weight: 700; margin-top: 8px; }
+  .screen-tag-o { background: rgba(249,115,22,0.2); color: var(--orange); }
+  .screen-tag-g { background: rgba(16,185,129,0.15); color: #10b981; }
+  .screen-tag-b { background: rgba(59,130,246,0.15); color: #60a5fa; }
+
+  /* SLIDE 5 — MARKET */
+  #s5 { background: var(--stone-900); padding: 0 80px; justify-content: center; }
+  .market-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 36px; }
+  .market-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 32px 24px; text-align: center; }
+  .market-num { font-family: 'Outfit', sans-serif; font-size: 52px; font-weight: 900; background: linear-gradient(135deg, var(--orange), #fb923c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; margin-bottom: 8px; }
+  .market-label { font-size: 14px; color: rgba(255,255,255,0.55); line-height: 1.5; }
+  .market-label strong { color: #fff; display: block; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+
+  /* SLIDE 6 — TRACTION */
+  #s6 { background: var(--stone-900); padding: 0 80px; justify-content: center; }
+  .traction-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 28px; }
+  .traction-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 24px; }
+  .traction-card.highlight { border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.05); }
+  .tc-label { font-size: 11px; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+  .tc-list { display: flex; flex-direction: column; gap: 8px; }
+  .tc-item { display: flex; align-items: flex-start; gap: 10px; }
+  .tc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); margin-top: 7px; flex-shrink: 0; }
+  .tc-text { font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.5; }
+  .tc-text strong { color: #fff; }
+
+  /* SLIDE 7 — BUSINESS MODEL */
+  #s7 { background: var(--stone-900); padding: 0 80px; justify-content: center; }
+  .model-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 36px; }
+  .model-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 28px; }
+  .model-card.primary { border-color: rgba(249,115,22,0.35); background: rgba(249,115,22,0.06); }
+  .model-number { font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 900; color: rgba(255,255,255,0.15); letter-spacing: 1px; margin-bottom: 16px; }
+  .model-title { font-size: 18px; font-weight: 700; color: #fff; font-family: 'Outfit', sans-serif; margin-bottom: 8px; }
+  .model-sub { font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.6; margin-bottom: 16px; }
+  .model-badge { font-size: 13px; font-weight: 700; color: var(--orange); }
+
+  /* SLIDE 8 — WHY NOW */
+  #s8 { background: var(--stone-900); padding: 0 80px; justify-content: center; }
+  .why-list { display: flex; flex-direction: column; gap: 14px; margin-top: 32px; max-width: 900px; width: 100%; }
+  .why-item { display: flex; gap: 20px; align-items: flex-start; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 18px 24px; }
+  .why-num { font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 900; color: rgba(249,115,22,0.25); line-height: 1; flex-shrink: 0; width: 40px; }
+  .why-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .why-desc { font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.6; }
+
+  /* SLIDE 9 — ASK */
+  #s9 { background: var(--stone-900); justify-content: center; align-items: center; }
+  #s9::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 50% at 50% 100%, rgba(249,115,22,0.12) 0%, transparent 70%); }
+  .ask-center { text-align: center; max-width: 700px; padding: 0 24px; position: relative; z-index: 1; }
+  .ask-amount { font-family: 'Outfit', sans-serif; font-size: 96px; font-weight: 900; color: #fff; line-height: 1; letter-spacing: -3px; }
+  .ask-amount span { color: var(--orange); }
+  .ask-label { font-size: 16px; color: rgba(255,255,255,0.45); margin-top: 8px; margin-bottom: 32px; }
+  .ask-uses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 24px; text-align: left; }
+  .ask-use { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; }
+  .ask-use-pct { font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 900; color: var(--orange); }
+  .ask-use-label { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; line-height: 1.4; }
+  .ask-footer { margin-top: 24px; font-size: 13px; color: rgba(255,255,255,0.2); }
+
+  /* SLIDE 10 — COST ANALYSIS */
+  #s10 { background: var(--stone-900); padding: 0 80px; justify-content: center; }
+  .cost-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 28px; width: 100%; }
+  .cost-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 20px; }
+  .cost-card.highlight { border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.05); }
+  .cost-cat { font-size: 10px; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+  .cost-rows { display: flex; flex-direction: column; gap: 7px; }
+  .cost-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; }
+  .cost-item { color: rgba(255,255,255,0.6); }
+  .cost-val  { font-weight: 700; color: #fff; font-size: 12px; white-space: nowrap; }
+  .cost-total { margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.07); display: flex; justify-content: space-between; font-size: 12px; }
+  .cost-total-lbl { color: rgba(255,255,255,0.4); }
+  .cost-total-val { font-weight: 800; color: var(--orange); font-size: 14px; }
+  .cost-summary { background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.2); border-radius: 14px; padding: 16px 20px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .cs-label { font-size: 13px; color: rgba(255,255,255,0.6); }
+  .cs-val { font-family: 'Outfit', sans-serif; font-size: 24px; font-weight: 900; color: var(--orange); }
+  .cs-note { font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 2px; }
+
+  /* NEW: slide 9, 10, 11 */
+  #s9 { background: var(--stone-900); padding: 0 80px; justify-content: center; }
+  #s10 { background: var(--stone-900); padding: 0 80px; justify-content: center; }
+  #s11 { background: var(--stone-900); padding: 0 80px; justify-content: center; }
+  .ask-split { display: flex; gap: 48px; align-items: flex-start; width: 100%; max-width: 1060px; }
+  .ask-left  { flex: 1.1; }
+  .ask-right { flex: 0.9; }
+  .ask-big { font-family: 'Outfit', sans-serif; font-size: 80px; font-weight: 900; color: #fff; line-height: 1; letter-spacing: -3px; margin: 8px 0 4px; }
+  .ask-big span { color: var(--orange); }
+  .ask-sub { font-size: 13px; color: rgba(255,255,255,0.4); margin-bottom: 20px; line-height: 1.5; }
+  .use-grid { display: flex; flex-direction: column; gap: 8px; }
+  .use-row { display: flex; align-items: center; gap: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 12px 16px; }
+  .use-row.primary { border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.06); }
+  .use-pct { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 900; color: var(--orange); min-width: 52px; }
+  .use-title { font-size: 12px; font-weight: 700; color: #fff; }
+  .use-amt { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1 — COVER -->
+<div class="slide" id="s1">
+  <div class="cover-grid"></div>
+  <div class="cover-logo">₹</div>
+  <div class="cover-title outfit">Budget<span> Mantra</span></div>
+  <div class="cover-sub">India's AI-first personal finance companion</div>
+  <div class="cover-badge">
+    <span class="chip chip-orange">🚀 Version 2.0</span>
+    <span class="chip chip-white">💡 Seed Round</span>
+    <span class="chip chip-white">🇮🇳 Built for Bharat</span>
+  </div>
+</div>
+
+<!-- SLIDE 2 — PROBLEM -->
+<div class="slide" id="s2">
+  <div style="max-width:1000px;width:100%;padding-top:80px">
+    <div class="slide-eyebrow">The Problem</div>
+    <div class="slide-h1">India has <span>1.4 billion people.</span><br>Almost none have a financial plan.</div>
+    <div class="divider"></div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-num">3%</div>
+        <div class="problem-label"><strong>Have a financial advisor</strong>97% of Indians navigate money completely alone — no guidance, no plan.</div>
+      </div>
+      <div class="problem-card">
+        <div class="problem-num">78%</div>
+        <div class="problem-label"><strong>Live paycheck to paycheck</strong>Middle-class Indians earn more than ever — yet save less than ever.</div>
+      </div>
+      <div class="problem-card">
+        <div class="problem-num">0</div>
+        <div class="problem-label"><strong>Apps built for Indian money</strong>Hand loans, chit funds, gold savings, UPI splits — ignored by every Western app.</div>
+      </div>
+      <div class="problem-card">
+        <div class="problem-num">₹12L</div>
+        <div class="problem-label"><strong>Average annual EMI burden</strong>Indians juggle home loans, car EMIs, personal loans — with zero visibility.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 3 — SOLUTION -->
+<div class="slide" id="s3">
+  <div class="solution-wrap">
+    <div class="solution-left">
+      <div class="slide-eyebrow">The Solution</div>
+      <div class="slide-h1">Meet <span>Chanakya</span> —<br>Your AI money advisor</div>
+      <div class="divider"></div>
+      <div class="slide-desc">Budget Mantra is the first personal finance app built ground-up for Indians — with a conversational AI that understands ₹ bills, EMIs, gold, hand loans, UPI, and the way real Indian families manage money.</div>
+      <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap;">
+        <span class="chip chip-orange">Web App</span>
+        <span class="chip chip-orange">iOS & Android</span>
+        <span class="chip chip-orange">Chat-first</span>
+      </div>
+    </div>
+    <div class="solution-right">
+      <div class="feat-tile"><div class="feat-icon">🤖</div><div class="feat-title">Chanakya AI</div><div class="feat-desc">Chat to add expenses, set goals, get advice. No forms.</div></div>
+      <div class="feat-tile"><div class="feat-icon">📊</div><div class="feat-title">Smart Budget</div><div class="feat-desc">Auto-categorised spending with live budget tracking.</div></div>
+      <div class="feat-tile"><div class="feat-icon">🏦</div><div class="feat-title">EMI Manager</div><div class="feat-desc">All loans in one place with payoff timeline.</div></div>
+      <div class="feat-tile"><div class="feat-icon">✈️</div><div class="feat-title">Trip Planner</div><div class="feat-desc">AI itinerary + bill splitting for group travel.</div></div>
+      <div class="feat-tile"><div class="feat-icon">🥇</div><div class="feat-title">Gold & Silver</div><div class="feat-desc">Track physical holdings with live MCX prices.</div></div>
+      <div class="feat-tile"><div class="feat-icon">🤝</div><div class="feat-title">Hand Loans</div><div class="feat-desc">Track money lent/borrowed among friends & family.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 4 — PRODUCT -->
+<div class="slide" id="s4">
+  <div style="max-width:1100px;width:100%;padding-top:60px">
+    <div class="slide-eyebrow">Product</div>
+    <div class="slide-h1">Everything Indians need,<br><span>nothing they don't.</span></div>
+    <div class="product-row">
+      <div class="product-screen">
+        <div class="screen-header"><div class="screen-title">Chanakya Chat</div><div class="screen-sub">AI Financial Advisor</div></div>
+        <div class="screen-body">
+          <div style="background:rgba(249,115,22,0.1);border-radius:10px;padding:10px;margin-bottom:8px;"><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px;">You said</div><div style="font-size:11px;color:#fff;">"Add ₹450 Swiggy expense"</div></div>
+          <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:10px;"><div style="font-size:10px;color:rgba(249,115,22,0.8);margin-bottom:4px;">Chanakya</div><div style="font-size:11px;color:#fff;">Done! ✅ ₹450 logged under Food. 64% of budget used.</div></div>
+          <div class="screen-tag screen-tag-o" style="margin-top:12px;">Chat-first UX</div>
+        </div>
+      </div>
+      <div class="product-screen">
+        <div class="screen-header"><div class="screen-title">Dashboard</div><div class="screen-sub">Financial Overview</div></div>
+        <div class="screen-body">
+          <div class="screen-stat">₹42,800</div><div class="screen-stat-label">Available this month</div>
+          <div style="margin-top:14px;"><div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,0.4);margin-bottom:4px;"><span>Budget used</span><span>68%</span></div><div class="screen-bar"><div class="screen-bar-fill" style="width:68%"></div></div></div>
+          <div class="screen-tag screen-tag-g">Health Score: 74</div>
+        </div>
+      </div>
+      <div class="product-screen">
+        <div class="screen-header"><div class="screen-title">Trip Planner</div><div class="screen-sub">AI Itinerary + Splits</div></div>
+        <div class="screen-body">
+          <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:10px;">Goa Trip · 4 people</div>
+          <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:10px;margin-bottom:8px;"><div style="font-size:9px;color:var(--orange);font-weight:700;margin-bottom:4px;">DAY 1</div><div style="font-size:10px;color:#fff;">09:00 · Baga Beach</div><div style="font-size:10px;color:rgba(255,255,255,0.4);">₹200 · 4.8★ · All days</div></div>
+          <div class="screen-tag screen-tag-b">Live flight prices</div>
+        </div>
+      </div>
+      <div class="product-screen">
+        <div class="screen-header"><div class="screen-title">Group Expenses</div><div class="screen-sub">Split bills, settle up</div></div>
+        <div class="screen-body">
+          <div style="margin-bottom:12px;"><div style="font-size:9px;color:rgba(255,255,255,0.4);margin-bottom:6px;">BALANCES</div><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:11px;color:#fff;">Rahul owes you</span><span style="font-size:11px;color:#10b981;font-weight:700;">+₹850</span></div></div>
+          <div style="background:rgba(249,115,22,0.12);border-radius:8px;padding:8px;font-size:10px;color:var(--orange);">Net: you're owed ₹550</div>
+          <div class="screen-tag screen-tag-o">Settle Up</div>
+        </div>
+      </div>
+      <div class="product-screen">
+        <div class="screen-header"><div class="screen-title">FIRE Calculator</div><div class="screen-sub">Retire early planning</div></div>
+        <div class="screen-body">
+          <div class="screen-stat">48</div><div class="screen-stat-label">Retire at age</div>
+          <div style="margin-top:12px;font-size:10px;color:rgba(255,255,255,0.5);">Target corpus</div>
+          <div style="font-size:16px;font-weight:800;color:#fff;font-family:'Outfit',sans-serif;">₹4.2 Cr</div>
+          <div style="margin-top:10px;"><div class="screen-bar"><div class="screen-bar-fill" style="width:32%;background:#8b5cf6;"></div></div><div style="font-size:9px;color:rgba(255,255,255,0.4);margin-top:4px;">32% of FIRE goal reached</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 5 — MARKET -->
+<div class="slide" id="s5">
+  <div style="max-width:960px;width:100%;padding-top:80px">
+    <div class="slide-eyebrow">Market Opportunity</div>
+    <div class="slide-h1">A <span>$30B market</span> with<br>no dominant player.</div>
+    <div class="divider"></div>
+    <div class="market-row">
+      <div class="market-card"><div class="market-num">500M+</div><div class="market-label"><strong>Smartphone users in India</strong>Growing 15% YoY. Every one of them manages money on their phone.</div></div>
+      <div class="market-card"><div class="market-num">$30B</div><div class="market-label"><strong>Indian fintech market size</strong>Growing at 20% CAGR. Personal finance is the largest underpenetrated segment.</div></div>
+      <div class="market-card"><div class="market-num">280M</div><div class="market-label"><strong>Millennials in peak earning years</strong>Earning more, spending more, saving less — and desperately needing guidance.</div></div>
+    </div>
+    <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
+      <span class="chip chip-white">🇮🇳 Mint shut down India ops</span>
+      <span class="chip chip-white">📉 Walnut discontinued</span>
+      <span class="chip chip-white">🔒 Paytm Money = trading only</span>
+      <span class="chip chip-orange">✅ No full-stack personal finance app</span>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 6 — TRACTION -->
+<div class="slide" id="s6">
+  <div style="max-width:960px;width:100%;padding-top:60px">
+    <div class="slide-eyebrow">Traction</div>
+    <div class="slide-h1">Live. Shipped. <span>Growing.</span></div>
+    <div class="divider"></div>
+    <div class="traction-grid">
+      <div class="traction-card highlight">
+        <div class="tc-label">🚀 Version 2.0 — Just Shipped</div>
+        <div class="tc-list">
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>Web app</strong> live at budgetmantra.in</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>iOS + Android</strong> apps built with React Native/Expo</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>Chanakya AI</strong> powered by Claude (Anthropic)</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>25+ features</strong>: EMIs, Goals, Investments, Gold, Trips, FIRE, Statements</div></div>
+        </div>
+      </div>
+      <div class="traction-card">
+        <div class="tc-label">⚙️ Technology</div>
+        <div class="tc-list">
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>FastAPI backend</strong> on Railway with auto-deploy</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>MongoDB Atlas</strong> — zero-ops, scales to millions</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>React + React Native</strong> — one team, two platforms</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>UPI Statement import</strong> — PDF & Excel parsing</div></div>
+        </div>
+      </div>
+      <div class="traction-card">
+        <div class="tc-label">💡 AI Capabilities</div>
+        <div class="tc-list">
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text">Natural language expense logging in seconds</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text">AI trip itinerary with real flight prices</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text">Context-aware financial advice using full user data</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text">Smart duplicate detection on bank imports</div></div>
+        </div>
+      </div>
+      <div class="traction-card">
+        <div class="tc-label">🇮🇳 India-specific Features</div>
+        <div class="tc-list">
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>Hand loans</strong> — informal lending between friends/family</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>Gold & Silver</strong> — live MCX rates, physical holding tracker</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>UPI statement import</strong> — parse bank PDFs automatically</div></div>
+          <div class="tc-item"><div class="tc-dot"></div><div class="tc-text"><strong>Family Circle</strong> — shared finance for households</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 7 — BUSINESS MODEL -->
+<div class="slide" id="s7">
+  <div style="max-width:960px;width:100%;padding-top:80px">
+    <div class="slide-eyebrow">Business Model</div>
+    <div class="slide-h1">Three paths to <span>revenue.</span></div>
+    <div class="divider"></div>
+    <div class="model-row">
+      <div class="model-card primary">
+        <div class="model-number">01</div>
+        <div class="model-title">Pro Subscriptions</div>
+        <div class="model-sub">Free tier covers budgeting basics. Pro unlocks unlimited AI, investments, group expenses, FIRE calculator and advanced analytics.</div>
+        <div class="model-badge">₹199 / month</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;">or ₹1,499 / year</div>
+      </div>
+      <div class="model-card">
+        <div class="model-number">02</div>
+        <div class="model-title">B2B White-label</div>
+        <div class="model-sub">Banks and NBFCs license Budget Mantra as a branded personal finance tool for their customers — increasing stickiness and cross-sell.</div>
+        <div class="model-badge">₹10L+ / client</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;">annual SaaS contract</div>
+      </div>
+      <div class="model-card">
+        <div class="model-number">03</div>
+        <div class="model-title">Contextual Offers</div>
+        <div class="model-sub">When users signal intent (buying a car, planning a trip, taking a loan) we surface relevant financial products — insurance, credit cards, SIPs.</div>
+        <div class="model-badge">30–40% commission</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;">on referred products</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 8 — WHY NOW -->
+<div class="slide" id="s8">
+  <div style="max-width:900px;width:100%;padding-top:60px">
+    <div class="slide-eyebrow">Why Now</div>
+    <div class="slide-h1">The stars are aligned<br>for <span>Budget Mantra.</span></div>
+    <div class="divider"></div>
+    <div class="why-list">
+      <div class="why-item"><div class="why-num">01</div><div><div class="why-title">UPI created a financial data trail for 400M+ Indians</div><div class="why-desc">Every transaction leaves a digital footprint. Budget Mantra turns that data into personalised insight — finally possible at scale.</div></div></div>
+      <div class="why-item"><div class="why-num">02</div><div><div class="why-title">LLMs make conversational finance viable for the first time</div><div class="why-desc">Claude-class models mean natural language UX is finally good enough — a chat-first finance app actually works and delights users.</div></div></div>
+      <div class="why-item"><div class="why-num">03</div><div><div class="why-title">Competitors left the field — Mint, Walnut, Money View pivoted away</div><div class="why-desc">The last generation of personal finance apps either shut down or shifted to lending. There is a clear gap for a modern, AI-native product.</div></div></div>
+      <div class="why-item"><div class="why-num">04</div><div><div class="why-title">India's middle class grew 50% in 5 years and is underserved</div><div class="why-desc">Rising incomes + complex financial lives + zero guidance = enormous latent demand for exactly what Budget Mantra offers.</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 9 — UNIT ECONOMICS -->
+<div class="slide" id="s9">
+  <div style="max-width:1100px;width:100%;padding-top:44px">
+    <div class="slide-eyebrow">Unit Economics &amp; Scale — AWS Infrastructure</div>
+    <div class="slide-h1">Lean at launch. <span>Profitable at scale.</span></div>
+    <div class="divider"></div>
+    <div style="display:grid;grid-template-columns:1.8fr 1fr 1fr 1fr;gap:0;margin-top:16px;border:1px solid rgba(255,255,255,0.07);border-radius:16px;overflow:hidden;">
+      <div style="background:rgba(255,255,255,0.04);padding:9px 14px;font-size:9px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid rgba(255,255,255,0.06);">Cost Component</div>
+      <div style="background:rgba(255,255,255,0.04);padding:9px 14px;font-size:9px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:center;">Launch (0–10K MAU)</div>
+      <div style="background:rgba(255,255,255,0.04);padding:9px 14px;font-size:9px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:center;">Growth (100K MAU)</div>
+      <div style="background:rgba(255,255,255,0.04);padding:9px 14px;font-size:9px;font-weight:700;color:#f97316;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:center;">Scale (1M MAU)</div>
+      <div style="padding:8px 14px;font-size:11px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.04);">☁️ AWS Compute (EC2 / ECS Fargate)</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹2,500</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹12,500</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹66,500</div>
+      <div style="padding:8px 14px;font-size:11px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.04);">🗄️ MongoDB Atlas</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹0 (M0 free)</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹15,720</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹1,12,320</div>
+      <div style="padding:8px 14px;font-size:11px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.04);">🤖 Claude AI (Haiku + prompt caching)</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹12,500</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹1,49,760</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹14,97,600</div>
+      <div style="padding:8px 14px;font-size:11px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.04);">📲 WhatsApp (Twilio) + CDN + misc</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹1,245</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹20,800</div>
+      <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">₹1,83,100</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#f97316;background:rgba(249,115,22,0.06);">Total Monthly Burn</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#10b981;text-align:center;background:rgba(249,115,22,0.06);">₹16,245</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#f59e0b;text-align:center;background:rgba(249,115,22,0.06);">₹1,98,780</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#f97316;text-align:center;background:rgba(249,115,22,0.06);">₹18,59,520</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#10b981;">Revenue @ 5% Pro conversion</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#10b981;text-align:center;">₹9,950</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#10b981;text-align:center;">₹99,500</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#10b981;text-align:center;">₹99,50,000</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:rgba(255,255,255,0.5);">Gross Margin</div>
+      <div style="padding:10px 14px;font-size:11px;color:rgba(255,255,255,0.35);text-align:center;">ramp phase</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#fff;text-align:center;">~50%</div>
+      <div style="padding:10px 14px;font-size:12px;font-weight:800;color:#f97316;text-align:center;">~81%</div>
+    </div>
+    <div style="display:flex;gap:14px;margin-top:14px;">
+      <div style="flex:1;background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:12px 16px;"><div style="font-size:9px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px;">AI cost advantage</div><div style="font-size:11px;color:rgba(255,255,255,0.6);line-height:1.5;">Claude prompt caching reduces input costs by <strong style="color:#fff;">~60%</strong>. At 1M MAU uncached = ₹46L/mo → caching brings it to ₹15L/mo.</div></div>
+      <div style="flex:1;background:rgba(249,115,22,0.07);border:1px solid rgba(249,115,22,0.2);border-radius:12px;padding:12px 16px;"><div style="font-size:9px;font-weight:700;color:#f97316;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px;">Break-even point</div><div style="font-size:11px;color:rgba(255,255,255,0.6);line-height:1.5;">Launch breaks even at just <strong style="color:#fff;">82 Pro subscribers</strong> @ ₹199/mo. At 10K MAU that's 0.82% conversion.</div></div>
+      <div style="flex:1;background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:12px 16px;"><div style="font-size:9px;font-weight:700;color:#60a5fa;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px;">AWS migration</div><div style="font-size:11px;color:rgba(255,255,255,0.6);line-height:1.5;">Move to AWS App Runner + RDS + ElastiCache at 100K users for <strong style="color:#fff;">HA, auto-scaling & B2B compliance</strong>.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 10 — THE ASK ₹10L -->
+<div class="slide" id="s10">
+  <div class="ask-split" style="padding-top:52px;max-width:1060px;width:100%;">
+    <div class="ask-left">
+      <div class="slide-eyebrow">Pre-seed Round</div>
+      <div class="ask-big">₹<span>10 Lakh</span></div>
+      <div class="ask-sub">Everything is already built and live.<br>This funding is for growth, not survival.</div>
+      <div class="use-grid">
+        <div class="use-row primary"><div class="use-pct">50%</div><div><div class="use-title">Marketing & User Acquisition</div><div class="use-amt">₹5,00,000 — influencer seeding, ASO, paid social</div></div></div>
+        <div class="use-row"><div class="use-pct">20%</div><div><div class="use-title">Feature Development</div><div class="use-amt">₹2,00,000 — freelance devs, UX, security audit</div></div></div>
+        <div class="use-row"><div class="use-pct">9.4%</div><div><div class="use-title">12-month AWS Operations</div><div class="use-amt">₹93,648 — compute, DB, AI API, WhatsApp, CDN</div></div></div>
+        <div class="use-row"><div class="use-pct">1.5%</div><div><div class="use-title">App Store Publishing</div><div class="use-amt">₹14,900 — Google Play (₹2,100) + Apple Dev (₹8,300/yr)</div></div></div>
+        <div class="use-row"><div class="use-pct">19.1%</div><div><div class="use-title">Buffer / Legal / Compliance</div><div class="use-amt">₹1,91,452 — scaling headroom, legal, compliance</div></div></div>
+      </div>
+    </div>
+    <div class="ask-right" style="padding-top:40px;">
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:22px;margin-bottom:14px;">
+        <div style="font-size:9px;font-weight:700;color:#f97316;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px;">Milestones with ₹10L</div>
+        <div style="display:flex;flex-direction:column;gap:9px;">
+          <div style="display:flex;align-items:center;gap:10px;"><div style="width:5px;height:5px;border-radius:50%;background:#f97316;flex-shrink:0;"></div><div style="font-size:12px;color:rgba(255,255,255,0.75);">Publish iOS + Android apps to stores</div></div>
+          <div style="display:flex;align-items:center;gap:10px;"><div style="width:5px;height:5px;border-radius:50%;background:#f97316;flex-shrink:0;"></div><div style="font-size:12px;color:rgba(255,255,255,0.75);">Reach <strong style="color:#fff;">10,000 registered users</strong></div></div>
+          <div style="display:flex;align-items:center;gap:10px;"><div style="width:5px;height:5px;border-radius:50%;background:#f97316;flex-shrink:0;"></div><div style="font-size:12px;color:rgba(255,255,255,0.75);">First <strong style="color:#fff;">200+ paying Pro subscribers</strong></div></div>
+          <div style="display:flex;align-items:center;gap:10px;"><div style="width:5px;height:5px;border-radius:50%;background:#f97316;flex-shrink:0;"></div><div style="font-size:12px;color:rgba(255,255,255,0.75);">Migrate backend to AWS (auto-scale)</div></div>
+          <div style="display:flex;align-items:center;gap:10px;"><div style="width:5px;height:5px;border-radius:50%;background:#f97316;flex-shrink:0;"></div><div style="font-size:12px;color:rgba(255,255,255,0.75);">First B2B white-label pilot conversation</div></div>
+        </div>
+      </div>
+      <div style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);border-radius:14px;padding:14px 18px;margin-bottom:18px;">
+        <div style="font-size:9px;font-weight:700;color:#f97316;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:7px;">Break-even math</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.6;">Monthly burn at launch = <strong style="color:#fff;">₹16,245</strong><br>82 Pro users × ₹199/mo = <strong style="color:#10b981;">₹16,318/mo</strong> → break-even<br>That's <strong style="color:#fff;">0.82%</strong> conversion at 10K users.</div>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.18);text-align:center;">budgetmantra.in · mantrabudget@gmail.com · Built in India, for India</div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 11 — FREE FOREVER REVENUE MODEL -->
+<div class="slide" id="s11">
+  <div style="max-width:1060px;width:100%;padding-top:48px;">
+    <div class="slide-eyebrow">Alternative Revenue Model</div>
+    <div class="slide-h1">What if Budget Mantra stays <span>completely free?</span></div>
+    <div class="divider"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-top:22px;">
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:22px;position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#3b82f6,transparent);"></div>
+        <div style="font-size:24px;margin-bottom:8px;">🤝</div>
+        <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px;font-family:'Outfit',sans-serif;">Contextual Financial Offers</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);line-height:1.6;margin-bottom:14px;">When a user's EMI burden hits 40%+ of income, surface the right loan refinancing offer. When they hit a savings goal, suggest an FD or SIP. Intent-matched, never intrusive.</div>
+        <div style="font-size:9px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Revenue per action</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;">₹200–₹1,500 <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:400;">per referral</span></div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:3px;">30–40% commission from banks, NBFCs</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:22px;position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#8b5cf6,transparent);"></div>
+        <div style="font-size:24px;margin-bottom:8px;">🏦</div>
+        <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px;font-family:'Outfit',sans-serif;">B2B White-Label API</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);line-height:1.6;margin-bottom:14px;">Banks and NBFCs pay to embed Budget Mantra's AI financial advisor inside their own app. Users get the tool free; the bank pays the licence — proven Yodlee/Plaid model.</div>
+        <div style="font-size:9px;font-weight:700;color:#8b5cf6;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Revenue per client</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;">₹5L–₹25L/yr <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:400;">SaaS licence</span></div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:3px;">3 clients = ₹75L/yr — covers all ops</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:22px;position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#10b981,transparent);"></div>
+        <div style="font-size:24px;margin-bottom:8px;">📊</div>
+        <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px;font-family:'Outfit',sans-serif;">Anonymised Data Insights</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);line-height:1.6;margin-bottom:14px;">Aggregated, fully anonymised spending trends across cities, age groups, and income brackets — sold as market intelligence to FMCG brands and fintech researchers.</div>
+        <div style="font-size:9px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Revenue per report</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;">₹2L–₹10L/report <span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:400;">custom research</span></div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:3px;">Viable at 100K+ users. Zero marginal cost.</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;background:rgba(249,115,22,0.07);border:1px solid rgba(249,115,22,0.18);border-radius:14px;padding:16px 22px;display:flex;align-items:center;gap:28px;">
+      <div style="flex:1;"><div style="font-size:9px;font-weight:700;color:#f97316;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:5px;">Fully-free model at 1M users — unit economics</div><div style="font-size:12px;color:rgba(255,255,255,0.65);line-height:1.6;">Even if <strong style="color:#fff;">only 2% of users click one financial offer per year</strong> at avg ₹500 commission — that's 20,000 conversions × ₹500 = <strong style="color:#f97316;">₹1 Cr/yr</strong> from a single stream, covering all operating costs with zero subscription friction.</div></div>
+      <div style="text-align:center;flex-shrink:0;"><div style="font-family:'Outfit',sans-serif;font-size:36px;font-weight:900;color:#f97316;line-height:1;">₹1 Cr</div><div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:3px;">annual rev @ 2% offer CTR</div><div style="font-size:10px;color:rgba(255,255,255,0.35);">no subscriptions needed</div></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
