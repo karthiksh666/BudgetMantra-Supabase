@@ -90,8 +90,10 @@ async def register(body: RegisterInput):
     # Supabase sends a confirmation email by default.
     # If email confirmations are disabled in Supabase dashboard, session is returned immediately.
     if res.session:
-        return {"access_token": res.session.access_token, "user": res.user}
-    return {"message": "Check your email to confirm your account."}
+        profile = supabase.table("profiles").select("*").eq("id", res.user.id).single().execute()
+        return {"access_token": res.session.access_token, "user": profile.data}
+    # Email confirmation required — return pending flag matching mobile AuthContext
+    return {"pending": True, "email": body.email, "name": body.name}
 
 
 @router.post("/login")
@@ -106,10 +108,11 @@ async def login(body: LoginInput):
         raise HTTPException(401, "Invalid email or password")
 
     _ensure_profile(supabase, res.user.id, email=body.email)
+    profile = supabase.table("profiles").select("*").eq("id", res.user.id).single().execute()
     return {
         "access_token": res.session.access_token,
         "refresh_token": res.session.refresh_token,
-        "user": res.user,
+        "user": profile.data,
     }
 
 
@@ -128,11 +131,23 @@ async def verify_otp(body: OtpVerifyInput):
 
     if res.user:
         _ensure_profile(supabase, res.user.id, email=body.email)
+    profile = supabase.table("profiles").select("*").eq("id", res.user.id).single().execute()
     return {
         "access_token": res.session.access_token,
         "refresh_token": res.session.refresh_token,
-        "user": res.user,
+        "user": profile.data,
     }
+
+
+@router.post("/resend-otp")
+async def resend_otp(body: ForgotPasswordInput):
+    """Resend signup confirmation OTP."""
+    supabase = get_supabase()
+    try:
+        supabase.auth.resend({"type": "signup", "email": body.email})
+    except Exception as e:
+        raise HTTPException(400, "Failed to resend OTP")
+    return {"message": "OTP resent."}
 
 
 @router.post("/forgot-password")
