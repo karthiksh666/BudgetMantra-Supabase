@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 import uuid
 from app.auth import get_current_user
 from app.database import get_supabase
@@ -94,3 +94,47 @@ async def contribute(goal_id: str, body: ContributionCreate, current_user: dict 
     supabase.table("savings_goals").update({"current_amount": new_amount}).eq("id", goal_id).execute()
 
     return contribution
+
+
+# ── Savings Goals Summary (Dashboard) ────────────────────────────────────────
+
+@router.get("/savings-goals-summary")
+async def savings_goals_summary(current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    goals = supabase.table("savings_goals").select("*").eq("user_id", current_user["id"]).execute()
+    goal_list = goals.data or []
+
+    total_target  = sum(g.get("target_amount", 0) for g in goal_list)
+    total_saved   = sum(g.get("current_amount", 0) for g in goal_list)
+    total_remaining = max(0, total_target - total_saved)
+
+    alerts = []
+    for g in goal_list:
+        try:
+            target_date = datetime.strptime(g["target_date"], "%Y-%m-%d")
+            days_remaining = (target_date - datetime.now()).days
+            months_remaining = max(1, days_remaining / 30)
+            amount_needed = (g.get("target_amount", 0) or 0) - (g.get("current_amount", 0) or 0)
+            monthly_needed = amount_needed / months_remaining
+            progress = ((g.get("current_amount", 0) or 0) / (g.get("target_amount", 1) or 1)) * 100
+
+            if days_remaining < 0:
+                alerts.append({"goal_id": g["id"], "goal_name": g["name"], "type": "overdue", "severity": "high",
+                                "message": f"'{g['name']}' target date has passed."})
+            elif days_remaining < 30 and amount_needed > 0:
+                alerts.append({"goal_id": g["id"], "goal_name": g["name"], "type": "urgent", "severity": "high",
+                                "message": f"'{g['name']}' is due in {days_remaining} days. Need ₹{amount_needed:,.0f} more."})
+            elif progress >= 100:
+                alerts.append({"goal_id": g["id"], "goal_name": g["name"], "type": "completed", "severity": "low",
+                                "message": f"'{g['name']}' is fully funded! 🎉"})
+        except Exception:
+            pass
+
+    return {
+        "goals": goal_list,
+        "total_target": total_target,
+        "total_saved": total_saved,
+        "total_remaining": total_remaining,
+        "overall_progress": round((total_saved / total_target * 100) if total_target > 0 else 0, 1),
+        "alerts": alerts,
+    }

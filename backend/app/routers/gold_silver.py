@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -101,3 +102,27 @@ async def delete_silver(item_id: str, current_user: dict = Depends(get_current_u
     supabase = get_supabase()
     supabase.table("silver_items").delete().eq("id", item_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
+
+
+# ── Buy-Goal metal prices ─────────────────────────────────────────────────────
+
+@router.get("/buy-goal/metal-prices")
+async def buy_goal_metal_prices(_: dict = Depends(get_current_user)):
+    """Live gold + silver prices for the Buy Goals calculator in TripsScreen."""
+    gold, silver = await asyncio.gather(_fetch_metal_price("XAU"), _fetch_metal_price("XAG"))
+    gold_per_gram   = gold.get("price") or 9500
+    silver_per_gram = silver.get("price") or 100
+    return {
+        "gold": {
+            "per_gram": round(gold_per_gram),
+            "per_10g":  round(gold_per_gram * 10),
+            "per_100g": round(gold_per_gram * 100),
+            "source":   gold.get("source", "estimated"),
+        },
+        "silver": {
+            "per_gram":  round(silver_per_gram),
+            "per_100g":  round(silver_per_gram * 100),
+            "per_kg":    round(silver_per_gram * 1000),
+            "source":    silver.get("source", "estimated"),
+        },
+    }

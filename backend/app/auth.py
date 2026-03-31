@@ -1,12 +1,13 @@
 """
 Auth utilities — verify Supabase JWTs and expose get_current_user dependency.
 
-Supabase signs user JWTs with the project jwt_secret (found in Project Settings
-→ API → JWT Secret).  We validate that token here instead of calling Supabase
-Auth API on every request (faster, no extra network hop).
+Supabase may sign JWTs with HS256 (jwt_secret) or ES256 (ECDSA key pair).
+We try HS256 first; if that fails we fall back to fetching the public key
+from Supabase's JWKS endpoint and verifying with ES256.
 """
 import jwt
-from fastapi import Depends, HTTPException, status
+import httpx
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.config import get_settings
 from app.database import get_supabase
@@ -14,20 +15,52 @@ from app.database import get_supabase
 bearer = HTTPBearer()
 settings = get_settings()
 
+# Cache JWKS keys so we don't fetch on every request
+_jwks_cache: dict = {}
+
+
+def _get_jwks_key(kid: str) -> str | None:
+    if kid in _jwks_cache:
+        return _jwks_cache[kid]
+    try:
+        resp = httpx.get(f"{settings.supabase_url}/auth/v1/.well-known/jwks.json", timeout=5)
+        for key in resp.json().get("keys", []):
+            _jwks_cache[key["kid"]] = jwt.algorithms.ECAlgorithm.from_jwk(key)
+        return _jwks_cache.get(kid)
+    except Exception:
+        return None
+
 
 def decode_token(token: str) -> dict:
+    # Try HS256 first (older Supabase projects)
     try:
-        payload = jwt.decode(
+        return jwt.decode(
             token,
             settings.jwt_secret,
-            algorithms=[settings.jwt_algorithm],
-            options={"verify_aud": False},   # Supabase sets aud="authenticated"
+            algorithms=["HS256"],
+            options={"verify_aud": False},
         )
-        return payload
+    except jwt.InvalidTokenError:
+        pass
+
+    # Fall back to ES256 via JWKS
+    try:
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        public_key = _get_jwks_key(kid) if kid else None
+        if public_key:
+            return jwt.decode(
+                token,
+                public_key,
+                algorithms=["ES256"],
+                options={"verify_aud": False},
+            )
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=401, detail="Invalid token")
 
 
 async def get_current_user(

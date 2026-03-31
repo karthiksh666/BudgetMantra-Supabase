@@ -19,7 +19,7 @@ from app.routers import (
     luxury_items, children, gifts, timeline,
     nominees, piggy_bank, feedback, admin,
     market, sms, financial_score, reset,
-    income_entries, recurring_expenses, credit_cards,
+    income_entries, recurring_expenses, credit_cards, trips,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -57,6 +57,7 @@ app.include_router(chat.router,             prefix=PREFIX)
 app.include_router(income_entries.router,   prefix=PREFIX)
 app.include_router(recurring_expenses.router, prefix=PREFIX)
 app.include_router(credit_cards.router,     prefix=PREFIX)
+app.include_router(trips.router,            prefix=PREFIX)
 app.include_router(hand_loans.router,       prefix=PREFIX)
 app.include_router(subscriptions.router,    prefix=PREFIX)
 app.include_router(categories.router,       prefix=PREFIX)
