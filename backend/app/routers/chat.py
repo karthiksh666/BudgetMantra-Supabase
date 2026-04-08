@@ -122,8 +122,8 @@ async def clear_history(current_user: dict = Depends(get_current_user)):
 async def chat(body: ChatRequest, current_user: dict = Depends(get_current_user)):
     supabase = get_supabase()
     user_id = current_user["id"]
-    user_name = current_user.get("name", "there")
-    first_name = user_name.split()[0]
+    user_name = current_user.get("name") or "there"
+    first_name = user_name.split()[0] if user_name.strip() else "there"
     today = _today_ist()
 
     # ── Load financial context ────────────────────────────────────────────────
