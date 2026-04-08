@@ -15,6 +15,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+import asyncio
 import os
 import logging
 from pathlib import Path
@@ -1451,7 +1452,7 @@ async def complete_onboarding(body: dict, current_user: dict = Depends(get_curre
             "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "notes": "Added during onboarding",
         }
-        await db.income.insert_one(income_doc)
+        await db.income_entries.insert_one(income_doc)
         invalidate_user_cache(user_id)
     return {"ok": True}
 
@@ -13141,24 +13142,28 @@ async def reset_savings_goals(current_user: dict = Depends(get_current_user)):
 async def reset_investments(current_user: dict = Depends(get_current_user)):
     uid = current_user["id"]
     r = await db.investments.delete_many({"user_id": uid})
+    invalidate_user_cache(uid)
     return {"deleted": r.deleted_count, "feature": "investments"}
 
 @api_router.delete("/reset/gold", status_code=200)
 async def reset_gold(current_user: dict = Depends(get_current_user)):
     uid = current_user["id"]
     r = await db.gold_items.delete_many({"user_id": uid})
+    invalidate_user_cache(uid)
     return {"deleted": r.deleted_count, "feature": "gold"}
 
 @api_router.delete("/reset/hand-loans", status_code=200)
 async def reset_hand_loans(current_user: dict = Depends(get_current_user)):
     uid = current_user["id"]
     r = await db.hand_loans.delete_many({"user_id": uid})
+    invalidate_user_cache(uid)
     return {"deleted": r.deleted_count, "feature": "hand_loans"}
 
 @api_router.delete("/reset/luxury-items", status_code=200)
 async def reset_luxury_items(current_user: dict = Depends(get_current_user)):
     uid = current_user["id"]
     r = await db.luxury_items.delete_many({"user_id": uid})
+    invalidate_user_cache(uid)
     return {"deleted": r.deleted_count, "feature": "luxury_items"}
 
 @api_router.delete("/reset/children", status_code=200)
@@ -13872,7 +13877,8 @@ async def admin_get_stats(admin_secret: str = ""):
 
     # NPS average
     nps_docs = await db.feedback.find({}, {"nps_score": 1, "_id": 0}).to_list(10000)
-    avg_nps = round(sum(d["nps_score"] for d in nps_docs) / len(nps_docs), 1) if nps_docs else None
+    _nps_scores = [d["nps_score"] for d in nps_docs if d.get("nps_score") is not None]
+    avg_nps = round(sum(_nps_scores) / len(_nps_scores), 1) if _nps_scores else None
 
     # Feedback by category
     pipeline = [{"$group": {"_id": "$category", "count": {"$sum": 1}}}]
@@ -13956,7 +13962,7 @@ async def circle_chat_ws(circle_id: str, websocket: WebSocket, token: str = ""):
     # Authenticate via token query param
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
+        user_id = payload.get("user_id") or payload.get("sub")
         if not user_id:
             await websocket.close(code=4001)
             return
