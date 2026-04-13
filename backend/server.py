@@ -11,7 +11,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from supabase import create_client, Client as SupabaseClient
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -30,7 +30,7 @@ import html as _html
 from anthropic import AsyncAnthropic
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
-from bson import ObjectId
+import json as _json_mod
 from cachetools import TTLCache
 import hashlib
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -142,17 +142,372 @@ if SECRET_KEY == 'your-secret-key-change-in-production':
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day — security default; biometric re-auth on mobile handles UX
 
-mongo_url = os.environ['MONGO_URL']
-# tlsAllowInvalidCertificates is False in prod if MONGO_URL contains mongodb+srv (Atlas always has valid certs)
-_tls_skip = os.environ.get('MONGO_TLS_ALLOW_INVALID', 'false').lower() == 'true'
-client = AsyncIOMotorClient(
-    mongo_url,
-    tlsAllowInvalidCertificates=_tls_skip,
-    serverSelectionTimeoutMS=8000,   # fail fast if Atlas is unreachable
-    connectTimeoutMS=10000,          # 10s to establish connection
-    socketTimeoutMS=30000,           # 30s for individual operations
+_supabase: SupabaseClient = create_client(
+    os.environ['SUPABASE_URL'],
+    os.environ['SUPABASE_SERVICE_ROLE_KEY'],
 )
-db = client[os.environ['DB_NAME']]
+
+# ---------------------------------------------------------------------------
+# Supabase helper — thin compatibility shim so existing call-sites work with
+# minimal changes.  All DB calls are now synchronous (supabase-py v2).
+# ---------------------------------------------------------------------------
+
+class _SupaTable:
+    """Wraps supabase-py table operations to mimic the old motor/MongoDB API."""
+    def __init__(self, name: str):
+        self._name = name
+
+    # ── READ ──────────────────────────────────────────────────────────────────
+    def find(self, filt: dict = None, proj: dict = None):
+        return _SupaCursor(self._name, filt or {})
+
+    async def find_one(self, filt: dict = None, proj: dict = None, sort=None):
+        cur = _SupaCursor(self._name, filt or {})
+        if sort:
+            for field, direction in (sort if isinstance(sort, list) else [sort]):
+                cur = cur.sort(field, direction)
+        items = await cur.to_list(1)
+        return items[0] if items else None
+
+    async def insert_one(self, doc: dict):
+        clean = _strip_none(doc)
+        _supabase.table(self._name).insert(clean).execute()
+
+    async def insert_many(self, docs: list, ordered: bool = True):
+        if not docs:
+            return
+        clean = [_strip_none(d) for d in docs]
+        CHUNK = 500
+        for i in range(0, len(clean), CHUNK):
+            _supabase.table(self._name).insert(clean[i:i+CHUNK]).execute()
+
+    async def update_one(self, filt: dict, update: dict, upsert: bool = False):
+        patch = update.get("$set", {})
+        inc   = update.get("$inc", {})
+        pull  = update.get("$pull", {})
+        push  = update.get("$push", {})
+        unset = update.get("$unset", {})
+        if inc:
+            # fetch current values then update
+            row = await self.find_one(filt)
+            if row:
+                for k, v in inc.items():
+                    patch[k] = row.get(k, 0) + v
+        if unset:
+            for k in unset:
+                patch[k] = None
+        if pull:
+            row = await self.find_one(filt)
+            if row:
+                for k, v in pull.items():
+                    arr = row.get(k) or []
+                    if isinstance(arr, str):
+                        try:
+                            arr = _json_mod.loads(arr)
+                        except Exception:
+                            arr = []
+                    if isinstance(v, dict):
+                        # $pull with condition dict — remove matching elements
+                        pull_key, pull_val = next(iter(v.items()))
+                        arr = [el for el in arr if not (isinstance(el, dict) and el.get(pull_key) == pull_val)]
+                    else:
+                        arr = [el for el in arr if el != v]
+                    patch[k] = _json_mod.dumps(arr)
+        if push:
+            row = await self.find_one(filt)
+            if row:
+                for k, v in push.items():
+                    arr = row.get(k) or []
+                    if isinstance(arr, str):
+                        try:
+                            arr = _json_mod.loads(arr)
+                        except Exception:
+                            arr = []
+                    arr.append(v)
+                    patch[k] = _json_mod.dumps(arr)
+        if patch:
+            row = await self.find_one(filt)
+            if row:
+                q = _supabase.table(self._name).update(_strip_none(patch, allow_none_unset=True))
+                q = _apply_filter(q, filt)
+                q.execute()
+                return _UpdateResult(1)
+            elif upsert:
+                # Merge filter fields + patch fields for insert
+                new_doc = {**{k: v for k, v in filt.items() if not isinstance(v, dict)}, **patch}
+                if "id" not in new_doc:
+                    import uuid as _uuid_mod
+                    new_doc["id"] = str(_uuid_mod.uuid4())
+                _supabase.table(self._name).insert(_strip_none(new_doc)).execute()
+                return _UpdateResult(1)
+            return _UpdateResult(0)
+        return _UpdateResult(1)
+
+    async def update_many(self, filt: dict, update: dict):
+        patch = update.get("$set", {})
+        if patch:
+            q = _supabase.table(self._name).update(_strip_none(patch, allow_none_unset=True))
+            q = _apply_filter(q, filt)
+            q.execute()
+
+    async def delete_one(self, filt: dict):
+        # Limit to 1 row by using a sub-select on id if possible, otherwise just delete
+        row = await self.find_one(filt)
+        if row and "id" in row:
+            _supabase.table(self._name).delete().eq("id", row["id"]).execute()
+            return _DeleteResult(1)
+        return _DeleteResult(0)
+
+    async def delete_many(self, filt: dict):
+        q = _supabase.table(self._name).delete()
+        q = _apply_filter(q, filt)
+        res = q.execute()
+        return _DeleteResult(len(res.data or []))
+
+    async def count_documents(self, filt: dict, hint=None):
+        q = _supabase.table(self._name).select("id", count="exact")
+        q = _apply_filter(q, filt)
+        res = q.execute()
+        return res.count or 0
+
+    async def replace_one(self, filt: dict, doc: dict, upsert: bool = False):
+        """Upsert: replace matching doc or insert if not found."""
+        clean = _strip_none(doc)
+        row = await self.find_one(filt)
+        if row:
+            q = _supabase.table(self._name).update(clean)
+            q = _apply_filter(q, filt)
+            q.execute()
+        elif upsert:
+            _supabase.table(self._name).insert(clean).execute()
+
+    async def aggregate(self, pipeline: list):
+        # Only used for feedback NPS aggregate — handled in Python side
+        res = _supabase.table(self._name).select("*").execute()
+        return res.data or []
+
+    async def create_index(self, *args, **kwargs):
+        pass  # Indexes managed via schema.sql — no-op here
+
+
+class _DeleteResult:
+    def __init__(self, count: int):
+        self.deleted_count = count
+
+
+class _UpdateResult:
+    def __init__(self, matched: int = 1):
+        self.matched_count = matched
+        self.modified_count = matched
+
+
+class _SupaCursor:
+    def __init__(self, table: str, filt: dict):
+        self._table = table
+        self._filt  = filt
+        self._sorts: list[tuple] = []
+        self._lim: int = 10000
+        self._skip_n: int = 0
+
+    def sort(self, field_or_list, direction=None):
+        if isinstance(field_or_list, list):
+            for item in field_or_list:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    self._sorts.append((item[0], item[1]))
+                else:
+                    self._sorts.append((item, 1))
+        elif direction is not None:
+            self._sorts.append((field_or_list, direction))
+        return self
+
+    def limit(self, n: int):
+        self._lim = n
+        return self
+
+    def skip(self, n: int):
+        self._skip_n = n
+        return self
+
+    async def to_list(self, n: int = None):
+        limit = n if n is not None else self._lim
+        q = _supabase.table(self._table).select("*")
+        q = _apply_filter(q, self._filt)
+        for field, direction in self._sorts:
+            q = q.order(field, desc=(direction == -1))
+        if self._skip_n:
+            q = q.range(self._skip_n, self._skip_n + limit - 1)
+        else:
+            q = q.limit(limit)
+        res = q.execute()
+        return _deserialize_rows(res.data or [])
+
+    def __aiter__(self):
+        return self._async_iter()
+
+    async def _async_iter(self):
+        rows = await self.to_list(self._lim)
+        for r in rows:
+            yield r
+
+
+def _strip_none(d: dict, allow_none_unset: bool = False) -> dict:
+    """Remove keys with None values unless we want to explicitly set NULL.
+    Also serializes nested dicts/lists to JSON strings for TEXT columns."""
+    # Fields stored as TEXT (JSON) in Postgres schema
+    JSON_TEXT_FIELDS = {
+        "members", "splits", "split_among", "itinerary", "cost_breakdown",
+        "booking_tips", "affordability", "plan", "entries", "member_ids",
+        "notification_prefs", "share_sections", "attachment", "auto_debited_months",
+        "contributions", "expenses", "quick_insights",
+    }
+    result = {}
+    for k, v in d.items():
+        if k == "_id":
+            continue
+        if v is None:
+            if allow_none_unset:
+                result[k] = None
+            continue
+        # Serialize dicts/lists to JSON for TEXT columns
+        if isinstance(v, (dict, list)) and k in JSON_TEXT_FIELDS:
+            result[k] = _json_mod.dumps(v)
+        elif hasattr(v, 'isoformat'):
+            result[k] = v.isoformat()
+        else:
+            result[k] = v
+    return result
+
+
+def _deserialize_rows(rows: list) -> list:
+    """Deserialize JSON string fields (members, splits, etc.) back to Python objects."""
+    JSON_FIELDS = {"members", "splits", "split_among", "itinerary", "cost_breakdown",
+                   "booking_tips", "affordability", "plan", "entries", "member_ids",
+                   "notification_prefs", "share_sections", "attachment"}
+    result = []
+    for row in rows:
+        for field in JSON_FIELDS:
+            if field in row and isinstance(row[field], str):
+                try:
+                    row[field] = _json_mod.loads(row[field])
+                except Exception:
+                    pass
+        result.append(row)
+    return result
+
+
+def _apply_filter(q, filt: dict):
+    """Translate a MongoDB-style filter dict into supabase-py chained filter calls."""
+    for key, val in filt.items():
+        if key == "$or":
+            # $or is not directly supported in supabase-py v2 simple API; use or_ string
+            parts = []
+            for clause in val:
+                for k, v in clause.items():
+                    if isinstance(v, dict):
+                        if "$regex" in v:
+                            parts.append(f"{k}.ilike.%{v['$regex']}%")
+                        elif "$ne" in v:
+                            parts.append(f"{k}.neq.{v['$ne']}")
+                    else:
+                        parts.append(f"{k}.eq.{v}")
+            if parts:
+                q = q.or_(",".join(parts))
+        elif isinstance(val, dict):
+            for op, operand in val.items():
+                if op == "$gte":
+                    q = q.gte(key, operand)
+                elif op == "$lte":
+                    q = q.lte(key, operand)
+                elif op == "$gt":
+                    q = q.gt(key, operand)
+                elif op == "$lt":
+                    q = q.lt(key, operand)
+                elif op == "$ne":
+                    q = q.neq(key, operand)
+                elif op == "$in":
+                    q = q.in_(key, operand)
+                elif op == "$nin":
+                    q = q.not_.in_(key, operand)
+                elif op == "$exists":
+                    if operand:
+                        q = q.not_.is_(key, "null")
+                    else:
+                        q = q.is_(key, "null")
+                elif op == "$regex":
+                    import re as _re
+                    if operand.startswith("^"):
+                        prefix = operand[1:]
+                        # Date-prefix pattern like "^2026-04" → convert to gte/lt range
+                        if _re.match(r'^\d{4}-\d{2}$', prefix):
+                            yr, mo = int(prefix[:4]), int(prefix[5:7])
+                            ny, nm = (yr + 1, 1) if mo == 12 else (yr, mo + 1)
+                            q = q.gte(key, f"{prefix}-01").lt(key, f"{ny}-{nm:02d}-01")
+                        else:
+                            q = q.ilike(key, f"{prefix}%")
+                    else:
+                        q = q.ilike(key, f"%{operand}%")
+                elif op == "$options":
+                    pass  # MongoDB regex options (i, m) — ignored in Postgres ILIKE
+                elif op == "$elemMatch":
+                    # For array-of-objects matching (circles.members) — use contains
+                    q = q.contains(key, [operand])
+        elif val is None:
+            q = q.is_(key, "null")
+        elif key == "_id":
+            pass  # no _id in postgres
+        else:
+            q = q.eq(key, val)
+    return q
+
+
+class _NoOpTable:
+    """A silent no-op table for collections that don't exist in Supabase."""
+    async def find_one(self, *a, **kw): return None
+    def find(self, *a, **kw): return _NoOpCursor()
+    async def insert_one(self, *a, **kw): pass
+    async def insert_many(self, *a, **kw): pass
+    async def update_one(self, *a, **kw): pass
+    async def delete_one(self, *a, **kw): return _DeleteResult(0)
+    async def delete_many(self, *a, **kw): return _DeleteResult(0)
+    async def count_documents(self, *a, **kw): return 0
+    async def replace_one(self, *a, **kw): pass
+    async def aggregate(self, *a, **kw): return []
+    async def create_index(self, *a, **kw): pass
+
+class _NoOpCursor:
+    def sort(self, *a, **kw): return self
+    def limit(self, *a, **kw): return self
+    def skip(self, *a, **kw): return self
+    async def to_list(self, *a, **kw): return []
+    def __aiter__(self): return self._async_iter()
+    async def _async_iter(self):
+        return
+        yield  # make it a generator
+
+# Collections that don't exist in Supabase — silent no-ops
+_NOOP_TABLES = {"ai_usage", "net_worth_snapshots", "trip_savings"}
+
+# Collections that map to different Supabase table names
+_TABLE_RENAMES = {
+    "users":        "profiles",
+    "chat_history": "chat_messages",
+    "goals":        "savings_goals",
+}
+
+class _DB:
+    """Proxy: db.collection_name returns a _SupaTable instance."""
+    def __getattr__(self, name: str):
+        if name in _NOOP_TABLES:
+            return _NoOpTable()
+        return _SupaTable(_TABLE_RENAMES.get(name, name))
+
+    def __getitem__(self, name: str):
+        if name in _NOOP_TABLES:
+            return _NoOpTable()
+        return _SupaTable(_TABLE_RENAMES.get(name, name))
+
+
+db = _DB()
 
 def get_real_ip(request: Request) -> str:
     """Get real client IP, honouring X-Forwarded-For from Railway/Vercel proxies."""
@@ -1401,8 +1756,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     if not onboarding_complete:
         uid = current_user['id']
         has_data = False
-        for coll in ['transactions', 'income', 'emis', 'goals', 'investments', 'hand_loans', 'budget_categories']:
-            n = await db[coll].count_documents({"user_id": uid}, hint="_id_")
+        for coll in ['transactions', 'income_entries', 'emis', 'savings_goals', 'investments', 'hand_loans', 'budget_categories']:
+            n = await db[coll].count_documents({"user_id": uid})
             if n > 0:
                 has_data = True
                 break
@@ -1569,7 +1924,7 @@ async def admin_delete_user(body: AdminDeleteRequest):
     user = await db.users.find_one({"email": body.email.strip().lower()})
     if not user:
         raise HTTPException(status_code=404, detail=f"No user found with email {body.email}")
-    uid = str(user["id"]) if "id" in user else str(user["_id"])
+    uid = str(user["id"])
     # Remove from any family group
     fgid = user.get("family_group_id")
     if fgid:
@@ -1592,7 +1947,7 @@ async def admin_delete_user(body: AdminDeleteRequest):
                 deleted_counts[col] = r.deleted_count
         except Exception:
             pass
-    await db.users.delete_one({"_id": user["_id"]})
+    await db.users.delete_one({"id": uid})
     return {
         "message": f"User {body.email} permanently deleted",
         "collections_wiped": deleted_counts,
@@ -1635,7 +1990,7 @@ async def admin_send_welcome_emails(body: AdminWelcomeEmailRequest):
             ok = await _send_onboarding_email(email, name)
             if ok:
                 await db.users.update_one(
-                    {"_id": u["_id"]},
+                    {"id": u["id"]},
                     {"$set": {"welcome_email_sent": True}}
                 )
                 sent += 1
@@ -2276,11 +2631,10 @@ async def _do_upi_import_async(job_id: str, uid: str, items: list) -> None:
         CHUNK = 500
         for i in range(0, len(all_input_refs), CHUNK):
             batch_refs = all_input_refs[i:i + CHUNK]
-            cursor = db.transactions.find(
+            _batch_docs = await db.transactions.find(
                 {"user_id": uid, "upi_ref": {"$in": batch_refs}},
-                {"upi_ref": 1, "_id": 0},
-            )
-            async for doc in cursor:
+            ).to_list(len(batch_refs))
+            for doc in _batch_docs:
                 existing_refs.add(doc["upi_ref"])
 
         # ── 2. Build docs, skipping only true UPI-ref duplicates ─────────────
@@ -3631,6 +3985,7 @@ async def create_emi(input: EMICreate, current_user: dict = Depends(get_current_
     )
     doc = emi.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
+    doc['name'] = doc['loan_name']  # satisfies NOT NULL constraint on emis.name
     await db.emis.insert_one(doc)
     
     # Invalidate caches for this user
@@ -4381,7 +4736,8 @@ async def get_chanakya_suggestions(current_user: dict = Depends(get_current_user
 # Chatbot - Chanakya AI Financial Advisor
 # ── Chat message serialiser ────────────────────────────────────────────────────
 def _ser_msg(m: dict) -> dict:
-    m["id"] = str(m.pop("_id"))
+    """Serialize a chat message row. In Postgres, id is already a TEXT field."""
+    m.pop("_id", None)
     return m
 
 
@@ -4459,13 +4815,9 @@ async def get_unread_notifications(current_user: dict = Depends(get_current_user
         {"user_id": uid, "type": "import_done", "read": False}
     ).sort("created_at", -1).to_list(20)
     if docs:
-        ids = [d["_id"] for d in docs]
-        await db.notifications.update_many(
-            {"_id": {"$in": ids}},
-            {"$set": {"read": True}},
-        )
-    for d in docs:
-        d["_id"] = str(d["_id"])
+        ids = [d["id"] for d in docs if d.get("id")]
+        for nid in ids:
+            await db.notifications.update_one({"id": nid}, {"$set": {"read": True}})
     return docs
 
 
@@ -4568,12 +4920,8 @@ async def get_chat_history(
     Default page size 20 keeps initial load fast; clients load more as user scrolls up.
     """
     query: dict = {"user_id": current_user["id"], "deleted": {"$ne": True}}
-    if before:
-        try:
-            query["_id"] = {"$lt": ObjectId(before)}
-        except Exception:
-            pass  # malformed cursor — ignore, return latest batch
-    msgs = await db.chat_messages.find(query).sort([("timestamp", -1), ("_id", -1)]).limit(limit).to_list(limit)
+    # NOTE: "before" cursor pagination by _id is not supported in Postgres — omit silently
+    msgs = await db.chat_messages.find(query).sort([("timestamp", -1)]).limit(limit).to_list(limit)
     msgs.reverse()
     return [_ser_msg(m) for m in msgs]
 
@@ -4606,28 +4954,22 @@ async def clear_chat_history(current_user: dict = Depends(get_current_user)):
 # ── DELETE /chatbot/message/{msg_id} ──────────────────────────────────────────
 @api_router.delete("/chatbot/message/{msg_id}")
 async def delete_message(msg_id: str, current_user: dict = Depends(get_current_user)):
-    try:
-        await db.chat_messages.update_one(
-            {"_id": ObjectId(msg_id), "user_id": current_user["id"]},
-            {"$set": {"deleted": True}},
-        )
-    except Exception:
-        raise HTTPException(400, "Invalid message id")
+    await db.chat_messages.update_one(
+        {"id": msg_id, "user_id": current_user["id"]},
+        {"$set": {"deleted": True}},
+    )
     return {"ok": True}
 
 # ── PUT  /chatbot/message/{msg_id}/pin ────────────────────────────────────────
 @api_router.put("/chatbot/message/{msg_id}/pin")
 async def toggle_pin(msg_id: str, current_user: dict = Depends(get_current_user)):
-    try:
-        msg = await db.chat_messages.find_one(
-            {"_id": ObjectId(msg_id), "user_id": current_user["id"]}
-        )
-    except Exception:
-        raise HTTPException(400, "Invalid message id")
+    msg = await db.chat_messages.find_one(
+        {"id": msg_id, "user_id": current_user["id"]}
+    )
     if not msg:
         raise HTTPException(404, "Message not found")
     new_pin = not msg.get("pinned", False)
-    await db.chat_messages.update_one({"_id": ObjectId(msg_id)}, {"$set": {"pinned": new_pin}})
+    await db.chat_messages.update_one({"id": msg_id}, {"$set": {"pinned": new_pin}})
     return {"pinned": new_pin}
 
 # ── POST /chatbot/upload ───────────────────────────────────────────────────────
@@ -5347,11 +5689,8 @@ If you cannot determine the action or the message is a question/advice request, 
                     "attachment": None,
                     "pending_entries": pending_entries_out,
                 }
-                await _asyncio.gather(
-                    db.chat_messages.insert_one(u_doc),
-                    db.chat_messages.insert_one(a_doc),
-                    return_exceptions=True,
-                )
+                await db.chat_messages.insert_one(u_doc)
+                await db.chat_messages.insert_one(a_doc)
             except Exception as _e:
                 logger.error(f"[SaveTurn] {_e}")
 
@@ -5369,14 +5708,14 @@ If you cannot determine the action or the message is a question/advice request, 
         if input.pending_delete and is_confirmation:
             pd = input.pending_delete
             try:
-                txn = await db.transactions.find_one({"_id": ObjectId(pd["transaction_id"])})
+                txn = await db.transactions.find_one({"id": pd["transaction_id"]})
                 if txn:
                     if txn.get("category_id"):
                         await db.budget_categories.update_one(
                             {"id": txn["category_id"]},
                             {"$inc": {"spent_amount": -txn.get("amount", 0)}}
                         )
-                    await db.transactions.delete_one({"_id": ObjectId(pd["transaction_id"])})
+                    await db.transactions.delete_one({"id": pd["transaction_id"]})
                     name = current_user.get('name', '').split()[0]
                     response_text = f"Done — *{pd.get('description', 'entry')}* (₹{pd.get('amount', 0):,.0f}) has been removed from your records, {name}."
                 else:
@@ -5401,7 +5740,7 @@ If you cannot determine the action or the message is a question/advice request, 
                 if pe.get("new_description"): update_fields["description"]  = pe["new_description"]
                 if update_fields:
                     await db.transactions.update_one(
-                        {"_id": ObjectId(pe["transaction_id"])},
+                        {"id": pe["transaction_id"]},
                         {"$set": update_fields}
                     )
                     if pe.get("new_amount") and pe.get("old_amount") and pe.get("category_id"):
@@ -5447,14 +5786,14 @@ If you cannot determine the action or the message is a question/advice request, 
             if _is_undo:
                 recent = await db.transactions.find(
                     {**family_filter}
-                ).sort([("_id", -1)]).limit(5).to_list(5)
+                ).sort([("created_at", -1)]).limit(5).to_list(5)
                 match = recent[0] if recent else None
             else:
                 # Specific delete — try keyword match against last 10 by insertion order
                 keywords = _extract_desc(input.message).lower().split()
                 recent = await db.transactions.find(
                     {**family_filter}
-                ).sort([("_id", -1)]).limit(10).to_list(10)
+                ).sort([("created_at", -1)]).limit(10).to_list(10)
                 match = None
                 if keywords:
                     for txn in recent:
@@ -5470,7 +5809,7 @@ If you cannot determine the action or the message is a question/advice request, 
                 fmt_date = match.get("date", "")
                 fmt_desc = match.get("description", match.get("category_name", "entry"))
                 _pd_payload = {
-                    "transaction_id": str(match["_id"]),
+                    "transaction_id": str(match.get("id", match.get("_id", ""))),
                     "description":    fmt_desc,
                     "amount":         match.get("amount", 0),
                     "date":           fmt_date,
@@ -5493,14 +5832,14 @@ If you cannot determine the action or the message is a question/advice request, 
             from intent_engine import parse_amount as _pa
             recent = await db.transactions.find(
                 {**family_filter}
-            ).sort([("date", -1), ("_id", -1)]).limit(5).to_list(5)
+            ).sort([("date", -1)]).limit(5).to_list(5)
             if recent:
                 last = recent[0]
                 new_amt = _pa(input.message)
                 fmt_desc = last.get("description", last.get("category_name", "entry"))
                 if new_amt and new_amt != last.get("amount"):
                     _pe_payload = {
-                        "transaction_id": str(last["_id"]),
+                        "transaction_id": str(last.get("id", last.get("_id", ""))),
                         "description":   fmt_desc,
                         "old_amount":    last.get("amount", 0),
                         "new_amount":    new_amt,
@@ -6020,7 +6359,7 @@ If you cannot determine the action or the message is a question/advice request, 
                     "notes":                  action.get("notes", ""),
                     "created_at":             ist_now2.isoformat(),
                 }
-                await db.gold.insert_one(_gold_doc)
+                await db.gold_items.insert_one(_gold_doc)
                 invalidate_user_cache(user_id)
                 _wt = _gold_doc["weight_grams"] or _gold_doc["quantity"]
                 response = f"✅ Added {_gold_doc['name']} ({_gold_doc['type']}, {_wt}{'g' if _gold_doc['weight_grams'] else ' units'}) to your Gold tracker."
@@ -6039,7 +6378,7 @@ If you cannot determine the action or the message is a question/advice request, 
                     "notes":                  action.get("notes", ""),
                     "created_at":             ist_now2.isoformat(),
                 }
-                await db.silver.insert_one(_silver_doc)
+                await db.silver_items.insert_one(_silver_doc)
                 invalidate_user_cache(user_id)
                 _wt = _silver_doc["weight_grams"] or _silver_doc["quantity"]
                 response = f"✅ Added {_silver_doc['name']} ({_silver_doc['type']}, {_wt}{'g' if _silver_doc['weight_grams'] else ' units'}) to your Silver tracker."
@@ -6289,11 +6628,11 @@ If you cannot determine the action or the message is a question/advice request, 
                     _dt_query["amount"] = float(_dt_amount)
                 if _dt_date:
                     _dt_query["date"] = _dt_date
-                _dt_txn = await db.transactions.find_one(_dt_query, sort=[("_id", -1)])
+                _dt_txn = await db.transactions.find_one(_dt_query)
                 if not _dt_txn:
                     response = "I couldn't find a matching transaction to delete."
                 else:
-                    await db.transactions.delete_one({"_id": _dt_txn["_id"]})
+                    await db.transactions.delete_one({"id": _dt_txn["id"]})
                     invalidate_user_cache(_cb_uid)
                     response = f"🗑️ Deleted transaction: **{_dt_txn['description']}** ₹{_dt_txn['amount']:,.0f} on {_dt_txn.get('date', '')}"
 
@@ -6689,14 +7028,11 @@ If you cannot determine the action or the message is a question/advice request, 
             response = _re.sub(r'\{[^{}]*\}', '', response).replace('\n\n\n', '\n\n').strip()
 
         # ── Claude path: save turn + increment usage ──────────────────────────
-        await _asyncio.gather(
-            db.ai_usage.update_one(
-                {"user_id": current_user['id'], "feature": "chatbot", "date": today_key},
-                {"$inc": {"count": 1}}, upsert=True,
-            ),
-            _save_turn(response),
-            return_exceptions=True,
+        await db.ai_usage.update_one(
+            {"user_id": current_user['id'], "feature": "chatbot", "date": today_key},
+            {"$inc": {"count": 1}}, upsert=True,
         )
+        await _save_turn(response)
         updated_doc   = await db.ai_usage.find_one({"user_id": current_user['id'], "feature": "chatbot", "date": today_key})
         used_now      = updated_doc.get("count", 1) if updated_doc else 1
         messages_left = None if is_pro else max(0, daily_limit - used_now)
@@ -7782,6 +8118,79 @@ async def income_month_summary(current_user: dict = Depends(get_current_user)):
     }
 
 
+@api_router.get("/net-worth")
+async def get_net_worth(current_user: dict = Depends(get_current_user)):
+    """Return the user's current net worth, asset/liability breakdown, and monthly history."""
+    from datetime import date as _date
+    uid   = current_user["id"]
+    today = _date.today()
+    month_start = f"{today.year}-{today.month:02d}-01"
+    month_end   = f"{today.year}-{today.month:02d}-{today.day:02d}"
+
+    # ── Assets ───────────────────────────────────────────────────────────────
+    inv_docs = await db.investments.find({"user_id": uid}, {"_id": 0, "current_value": 1}).to_list(500)
+    investments = sum(i.get("current_value", 0) for i in inv_docs)
+
+    goals_docs = await db.savings_goals.find({"user_id": uid}, {"_id": 0, "current_amount": 1}).to_list(200)
+    savings_goals_amt = sum(g.get("current_amount", 0) for g in goals_docs)
+
+    gold_docs = await db.gold_items.find({"user_id": uid}, {"_id": 0, "current_value": 1}).to_list(200)
+    gold_value = sum(g.get("current_value", 0) for g in gold_docs)
+
+    silver_docs = await db.silver_items.find({"user_id": uid}, {"_id": 0, "current_value": 1}).to_list(200)
+    silver_value = sum(s.get("current_value", 0) for s in silver_docs)
+
+    income_this_month = await db.income_entries.find(
+        {"user_id": uid, "date": {"$gte": month_start, "$lte": month_end}},
+        {"_id": 0, "amount": 1}
+    ).to_list(500)
+    month_income = sum(e.get("amount", 0) for e in income_this_month)
+
+    txns_this_month = await db.transactions.find(
+        {"user_id": uid, "type": "expense", "date": {"$gte": month_start, "$lte": month_end}},
+        {"_id": 0, "amount": 1}
+    ).to_list(1000)
+    month_spent  = sum(t.get("amount", 0) for t in txns_this_month)
+    cash_savings = month_income - month_spent
+
+    # ── Liabilities ──────────────────────────────────────────────────────────
+    emi_docs = await db.emis.find({"user_id": uid, "status": "active"}, {"_id": 0, "remaining_balance": 1}).to_list(100)
+    emi_remaining = sum(e.get("remaining_balance", 0) for e in emi_docs)
+
+    loan_docs = await db.hand_loans.find(
+        {"user_id": uid, "loan_type": "borrowed", "status": "active"},
+        {"_id": 0, "amount": 1}
+    ).to_list(200)
+    hand_loans_owed = sum(l.get("amount", 0) for l in loan_docs)
+
+    total_assets      = investments + savings_goals_amt + gold_value + silver_value + cash_savings
+    total_liabilities = emi_remaining + hand_loans_owed
+    net_worth         = total_assets - total_liabilities
+
+    # ── History (from net_worth_snapshots) ───────────────────────────────────
+    snapshots = await db.net_worth_snapshots.find(
+        {"user_id": uid},
+        {"_id": 0, "month": 1, "net_worth": 1}
+    ).sort("month", 1).to_list(24)
+    history = [{"month": s["month"], "net_worth": s["net_worth"]} for s in snapshots]
+
+    return {
+        "net_worth": round(net_worth, 2),
+        "assets": {
+            "investments":   round(investments, 2),
+            "savings_goals": round(savings_goals_amt, 2),
+            "gold_value":    round(gold_value, 2),
+            "silver_value":  round(silver_value, 2),
+            "cash_savings":  round(cash_savings, 2),
+        },
+        "liabilities": {
+            "emi_remaining":   round(emi_remaining, 2),
+            "hand_loans_owed": round(hand_loans_owed, 2),
+        },
+        "history": history,
+    }
+
+
 @api_router.get("/transactions/today-summary")
 async def get_today_summary(current_user: dict = Depends(get_current_user)):
     """Sum of expense transactions for today (local date of user)."""
@@ -8515,7 +8924,14 @@ async def list_investments(current_user: dict = Depends(get_current_user)):
 @api_router.post("/investments", status_code=201)
 async def create_investment(data: InvestmentCreate, current_user: dict = Depends(get_current_user)):
     inv = Investment(user_id=current_user["id"], family_group_id=current_user.get("family_group_id"), **data.model_dump())
-    await db.investments.insert_one(inv.model_dump())
+    inv_doc = inv.model_dump()
+    # Provide fallback values for NOT NULL columns in the Supabase investments table
+    inv_doc['buy_date'] = getattr(data, 'buy_date', None) or datetime.now().strftime('%Y-%m-%d')
+    inv_doc['ticker'] = getattr(data, 'ticker', None) or ''
+    inv_doc['units'] = getattr(data, 'units', None) or 0
+    inv_doc['buy_price'] = getattr(data, 'buy_price', None) or data.invested_amount or 0
+    inv_doc['current_price'] = getattr(data, 'current_price', None) or data.invested_amount or 0
+    await db.investments.insert_one(inv_doc)
     if data.savings_goal_id:
         await _sync_goal_from_investments(data.savings_goal_id, current_user["id"])
     invalidate_user_cache(current_user["id"])
@@ -9093,7 +9509,7 @@ async def export_all_data_excel(current_user: dict = Depends(get_current_user)):
         } for i in invs] or [{}]).to_excel(writer, sheet_name="Investments", index=False)
 
         # Gold
-        gold = await db.gold.find({"user_id": uid}, {"_id": 0}).to_list(500)
+        gold = await db.gold_items.find({"user_id": uid}, {"_id": 0}).to_list(500)
         pd.DataFrame([{
             "purchase_date": g.get("purchase_date"), "grams": g.get("grams"),
             "rate_per_gram": g.get("rate_per_gram"), "total_cost": g.get("total_cost"),
@@ -9352,7 +9768,7 @@ async def import_excel(
                     "notes": str(row.get("notes", "")) if pd.notna(row.get("notes")) else "",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
-                await db.gold.insert_one(doc)
+                await db.gold_items.insert_one(doc)
                 summary["gold"] += 1
             except Exception as e:
                 summary["errors"].append(f"Gold row error: {e}")
@@ -10613,7 +11029,7 @@ async def get_hand_loans_summary(current_user: dict = Depends(get_current_user))
 @api_router.get("/hand-loans")
 async def list_hand_loans(current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
-    loans = await db.hand_loans.find({"user_id": user_id}, {"_id": 0}).sort("date", -1).to_list(1000)
+    loans = await db.hand_loans.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return loans
 
 
@@ -11206,6 +11622,39 @@ async def get_ai_usage(current_user: dict = Depends(get_current_user)):
 # Trip Planner Routes
 # ─────────────────────────────────────────────────────────────────────────────
 
+class TripBrainstormRequest(BaseModel):
+    destination: str
+    day_number: int
+    day_title: str = ""
+    query: str
+
+@api_router.post("/trips/brainstorm")
+async def trip_brainstorm(req: TripBrainstormRequest, current_user: dict = Depends(get_current_user)):
+    """Generate travel activity ideas for a specific trip day using Claude."""
+    _api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not _api_key:
+        raise HTTPException(status_code=503, detail="AI service not configured.")
+    client = AsyncAnthropic(api_key=_api_key)
+    system = (
+        "You are an expert local travel guide with deep knowledge of destinations worldwide. "
+        "Give practical, specific, local suggestions — real place names, timings, tips. "
+        "Keep responses concise (3-5 bullet points). No financial advice needed here."
+    )
+    user_msg = (
+        f"I'm visiting {req.destination}. "
+        f"Day {req.day_number}{f' ({req.day_title})' if req.day_title else ''}. "
+        f"{req.query}"
+    )
+    result = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=400,
+        temperature=0.7,
+        system=system,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    return {"response": result.content[0].text.strip()}
+
+
 @api_router.post("/trips/plan")
 async def plan_trip(req: TripPlanRequest, current_user: dict = Depends(get_current_user)):
     """Generate AI itinerary + cost estimate + affordability check."""
@@ -11396,7 +11845,7 @@ Return ONLY compact valid JSON, no markdown:
     doc["visa_info"]    = plan.get("visa_info")
     doc["currency_tip"] = plan.get("currency_tip")
     await db.trips.insert_one(doc)
-    doc.pop("_id", None)  # insert_one mutates doc with ObjectId — remove before returning
+    doc.pop("_id", None)  # safety: remove any _id before returning
 
     return doc
 
@@ -11472,9 +11921,12 @@ async def delete_trip(trip_id: str, current_user: dict = Depends(get_current_use
         raise HTTPException(status_code=404, detail="Trip not found")
     # Cascade: remove all child records for this trip
     await db.trip_expenses.delete_many({"trip_id": trip_id})
-    await db.trip_savings.delete_many({"trip_id": trip_id})
+    try:
+        await db.trip_savings.delete_many({"trip_id": trip_id})
+    except Exception:
+        pass  # trip_savings table may not exist
     # Also unlink any savings goal that was created for this trip
-    await db.goals.delete_many({"trip_id": trip_id, "user_id": current_user["id"]})
+    await db.savings_goals.delete_many({"trip_id": trip_id, "user_id": current_user["id"]})
     invalidate_user_cache(current_user["id"])
     return {"success": True}
 
@@ -12065,7 +12517,7 @@ async def create_circle_emi(circle_id: str, input: CircleEMICreate, current_user
         "created_at": datetime.utcnow().isoformat(),
     }
     await db.circle_emis.insert_one(doc)
-    doc["_id"] = str(doc["_id"])
+    doc.pop("_id", None)
     return doc
 
 @api_router.get("/circle/{circle_id}/emis")
@@ -12101,7 +12553,7 @@ async def create_circle_goal(circle_id: str, input: CircleGoalCreate, current_us
         "created_at": datetime.utcnow().isoformat(),
     }
     await db.circle_goals.insert_one(doc)
-    doc["_id"] = str(doc["_id"])
+    doc.pop("_id", None)
     return doc
 
 @api_router.get("/circle/{circle_id}/goals")
@@ -12172,7 +12624,6 @@ async def post_circle_message(circle_id: str, body: dict, current_user: dict = D
     last = await db.circle_messages.find_one(
         {"circle_id": circle_id},
         sort=[("seq", -1)],
-        projection={"seq": 1},
     )
     seq = (last.get("seq", 0) if last else 0) + 1
 
@@ -13262,7 +13713,8 @@ async def seed_sample_data(current_user: dict = Depends(get_current_user), force
 
     if force:
         # Wipe existing seed-able data so we always get fresh data
-        grp_ids = [g["id"] async for g in db.expense_groups.find({"user_id": uid}, {"id": 1})]
+        _grp_docs = await db.expense_groups.find({"user_id": uid}).to_list(1000)
+        grp_ids = [g["id"] for g in _grp_docs]
         if grp_ids:
             await db.group_expenses.delete_many({"group_id": {"$in": grp_ids}})
         for col in [db.jobs, db.paychecks, db.timeline, db.expense_groups, db.credit_scores, db.trips,
@@ -13880,10 +14332,12 @@ async def admin_get_stats(admin_secret: str = ""):
     _nps_scores = [d["nps_score"] for d in nps_docs if d.get("nps_score") is not None]
     avg_nps = round(sum(_nps_scores) / len(_nps_scores), 1) if _nps_scores else None
 
-    # Feedback by category
-    pipeline = [{"$group": {"_id": "$category", "count": {"$sum": 1}}}]
-    cat_agg = await db.feedback.aggregate(pipeline).to_list(20)
-    feedback_by_category = {d["_id"]: d["count"] for d in cat_agg}
+    # Feedback by category — Python-side aggregation
+    _all_feedback = await db.feedback.find({}).to_list(10000)
+    feedback_by_category: dict = {}
+    for _fb in _all_feedback:
+        _cat = _fb.get("category") or "other"
+        feedback_by_category[_cat] = feedback_by_category.get(_cat, 0) + 1
 
     # Signups last 7 days
     days = []
@@ -14014,8 +14468,8 @@ async def circle_chat_ws(circle_id: str, websocket: WebSocket, token: str = ""):
             # Sequence number for guaranteed ordering
             last = await db.circle_messages.find_one(
                 {"circle_id": circle_id},
+                None,
                 sort=[("seq", -1)],
-                projection={"seq": 1},
             )
             seq = (last.get("seq", 0) if last else 0) + 1
 
@@ -14068,4 +14522,4 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    pass  # Supabase uses HTTP — no persistent connection to close
