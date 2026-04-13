@@ -100,3 +100,32 @@ async def record_payment(emi_id: str, body: EMIPaymentCreate, current_user: dict
     supabase.table("emis").update({"months_paid": new_months, "status": status}).eq("id", emi_id).execute()
 
     return payment
+
+
+@router.post("/{emi_id}/foreclose")
+async def foreclose_emi(emi_id: str, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    emi = supabase.table("emis").select("*").eq("id", emi_id).eq("user_id", current_user["id"]).single().execute()
+    if not emi.data:
+        raise HTTPException(404, "EMI not found")
+    res = supabase.table("emis").update({"status": "foreclosed", "months_paid": emi.data["tenure_months"]}).eq("id", emi_id).execute()
+    return res.data[0]
+
+
+@router.get("/{emi_id}/preclosure-calculate")
+async def preclosure_calculate(emi_id: str, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    emi = supabase.table("emis").select("*").eq("id", emi_id).eq("user_id", current_user["id"]).single().execute()
+    if not emi.data:
+        raise HTTPException(404, "EMI not found")
+    e = emi.data
+    remaining_months = max(0, (e.get("tenure_months") or 0) - (e.get("months_paid") or 0))
+    outstanding      = (e.get("emi_amount") or 0) * remaining_months
+    penalty_rate     = 0.02  # 2% preclosure penalty
+    penalty          = round(outstanding * penalty_rate, 2)
+    return {
+        "remaining_months": remaining_months,
+        "outstanding_principal": round(outstanding, 2),
+        "preclosure_penalty": penalty,
+        "total_payable": round(outstanding + penalty, 2),
+    }

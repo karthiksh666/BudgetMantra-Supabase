@@ -234,3 +234,13 @@ async def delete_account(current_user: dict = Depends(get_current_user)):
     # All user data tables have ON DELETE CASCADE from profiles, so this cleans everything
     supabase.auth.admin.delete_user(user_id)
     return {"ok": True}
+
+
+@router.post("/toggle-pro")
+async def toggle_pro(current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    new_val = not (current_user.get("is_pro") or False)
+    res = supabase.table("profiles").update({"is_pro": new_val}).eq("id", current_user["id"]).execute()
+    if not res.data:
+        raise HTTPException(404, "Profile not found")
+    return {"is_pro": new_val}

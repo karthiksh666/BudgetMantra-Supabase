@@ -77,3 +77,20 @@ async def delete_loan(loan_id: str, current_user: dict = Depends(get_current_use
     supabase = get_supabase()
     supabase.table("hand_loans").delete().eq("id", loan_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
+
+
+@router.get("/summary")
+async def loans_summary(current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    loans = supabase.table("hand_loans").select("*").eq("user_id", current_user["id"]).execute().data or []
+    given  = [l for l in loans if l.get("type") == "given"  and not l.get("is_settled")]
+    taken  = [l for l in loans if l.get("type") == "taken"  and not l.get("is_settled")]
+    total_given = sum(l.get("remaining") or l.get("amount") or 0 for l in given)
+    total_taken = sum(l.get("remaining") or l.get("amount") or 0 for l in taken)
+    return {
+        "total_given": round(total_given, 2),
+        "total_taken": round(total_taken, 2),
+        "net": round(total_given - total_taken, 2),
+        "count_given": len(given),
+        "count_taken": len(taken),
+    }

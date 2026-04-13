@@ -20,6 +20,7 @@ from app.routers import (
     nominees, piggy_bank, feedback, admin,
     market, sms, financial_score, reset,
     income_entries, recurring_expenses, credit_cards, trips,
+    notifications, circle,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -84,6 +85,8 @@ app.include_router(sms.router,              prefix=PREFIX)
 app.include_router(feedback.router,         prefix=PREFIX)
 app.include_router(admin.router,            prefix=PREFIX)
 app.include_router(reset.router,            prefix=PREFIX)
+app.include_router(notifications.router,    prefix=PREFIX)
+app.include_router(circle.router,           prefix=PREFIX)
 
 
 @app.get("/")

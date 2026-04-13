@@ -64,3 +64,25 @@ async def delete_investment(investment_id: str, current_user: dict = Depends(get
     supabase = get_supabase()
     supabase.table("investments").delete().eq("id", investment_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
+
+
+@router.get("/summary")
+async def investments_summary(current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    invs = supabase.table("investments").select("*").eq("user_id", current_user["id"]).execute().data or []
+    total_invested    = sum(i.get("invested_amount") or 0 for i in invs)
+    total_current     = sum(i.get("current_value") or i.get("invested_amount") or 0 for i in invs)
+    total_gain        = total_current - total_invested
+    total_gain_pct    = round((total_gain / total_invested * 100) if total_invested else 0, 2)
+    by_type: dict = {}
+    for inv in invs:
+        t = inv.get("type") or "other"
+        by_type[t] = by_type.get(t, 0) + (inv.get("current_value") or inv.get("invested_amount") or 0)
+    return {
+        "total_invested": round(total_invested, 2),
+        "total_current_value": round(total_current, 2),
+        "total_gain": round(total_gain, 2),
+        "total_gain_pct": total_gain_pct,
+        "by_type": by_type,
+        "count": len(invs),
+    }

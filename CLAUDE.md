@@ -5,104 +5,157 @@ This file helps Claude Code (and human devs) understand the codebase conventions
 ## Project Layout
 
 ```
-BudgetMantra-main/          ← this repo (web + backend)
-  backend/server.py         ← entire FastAPI backend (one file)
-  frontend/src/
-    pages/                  ← one file per page/feature
-    components/
-      Navigation.js         ← sidebar + More drawer (web)
-      PageLoader.js         ← loading spinner with cycling tips
-    hooks/
-      useStaleData.js       ← stale-while-revalidate cache hook
-    context/AuthContext.js  ← JWT auth + user state
+BudgetMantra-Supabase/       ← Supabase backend (the primary backend going forward)
+  backend/
+    app/
+      main.py                ← FastAPI app entry point — registers all routers
+      auth.py                ← JWT verification (Supabase JWT)
+      database.py            ← Supabase client singleton
+      config.py              ← Settings (env vars)
+      routers/               ← One file per feature domain
+        auth.py              ← Register, login, Google OAuth, profile
+        transactions.py      ← Income/expense transactions
+        emis.py              ← EMI tracking + payments + foreclose
+        goals.py             ← Savings goals (prefix: /savings-goals)
+        investments.py       ← Investment portfolio + summary
+        chat.py              ← Chanakya AI chatbot + streaming
+        hand_loans.py        ← Hand loans (given/taken) + summary
+        subscriptions.py     ← Subscriptions
+        categories.py        ← Categories, budget-summary, net-worth, spending-breakdown
+        gold_silver.py       ← Gold/silver holdings + summaries
+        expense_groups.py    ← Group expense splitting
+        calendar.py          ← Calendar events + people events
+        paychecks.py         ← Paycheck history
+        jobs.py              ← Job/career timeline
+        luxury_items.py      ← Luxury items tracker
+        children.py          ← Children expense tracking
+        gifts.py             ← Gift planning
+        timeline.py          ← Life events timeline
+        nominees.py          ← Nominee management
+        piggy_bank.py        ← Piggy bank / savings jars
+        market.py            ← Stock/MF price lookups
+        sms.py               ← SMS transaction parser
+        financial_score.py   ← Financial health score
+        income_entries.py    ← Income entries
+        recurring_expenses.py← Recurring expenses
+        credit_cards.py      ← Credit cards + expenses
+        trips.py             ← Trip planner
+        notifications.py     ← Push notification prefs + tokens
+        circle.py            ← Shared expense circles (friends/family)
+        reset.py             ← Data reset endpoints
+        feedback.py          ← User feedback
+        admin.py             ← Admin tools
 
-BudgetMantra-Mobile/        ← separate repo (React Native)
+BudgetMantra-Mobile/         ← React Native app (separate repo)
   src/
-    screens/                ← one file per screen
-    hooks/useStaleData.ts   ← AsyncStorage + useFocusEffect TTL
+    screens/                 ← one file per screen
+    hooks/useStaleData.ts    ← AsyncStorage + useFocusEffect TTL
     components/ScreenHeader.tsx
-    constants/theme.ts      ← COLORS, RADIUS
-    navigation/index.tsx    ← tab + stack navigator
+    constants/
+      theme.ts               ← COLORS, RADIUS
+      api.ts                 ← ACTIVE_BACKEND switch ('mongo'|'supabase'|'local')
+    navigation/index.tsx     ← tab + stack navigator
+
+BudgetMantra-main/           ← Legacy MongoDB backend (production, being phased out)
+  backend/server.py          ← Monolithic FastAPI backend
+```
+
+## Backend Switch (Mobile)
+
+`BudgetMantra-Mobile/src/constants/api.ts` controls which backend the mobile app uses:
+
+```typescript
+const ACTIVE_BACKEND: 'mongo' | 'supabase' | 'local' = 'supabase';
+//   'mongo'    → production MongoDB at budgetmantra-production.up.railway.app
+//   'supabase' → production Supabase at budgetmantra-supabase-production.up.railway.app
+//   'local'    → Supabase running locally at http://{LOCAL_IP}:8001
 ```
 
 ## Core Principle: Chat-First
 
-Every feature should be accessible via the Chanakya AI chat at `/chat` (web) or ChatbotScreen (mobile). When adding a new data feature, always add a corresponding chat action in `backend/server.py`.
+Every feature should be accessible via the Chanakya AI chat at `/chat` (web) or ChatbotScreen (mobile). When adding a new data feature, always add a corresponding chat action in `backend/app/routers/chat.py`.
 
 ---
 
-## Web Patterns
+## Backend Patterns (Supabase)
 
-### Adding a New Page
+### Adding a New Endpoint
 
-1. Create `frontend/src/pages/XxxManager.js`
-2. Always use `useStaleData` — never raw `useEffect + useState` for data:
+1. Create or edit the relevant router in `backend/app/routers/`
+2. All routers use this pattern:
 
-```js
-import { useState, useCallback } from "react";
-import { useStaleData } from "@/hooks/useStaleData";
-import PageLoader from "@/components/PageLoader";
+```python
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from app.auth import get_current_user
+from app.database import get_supabase
+import uuid
+from datetime import datetime
 
-const fetchXxx = useCallback(async () => {
-  const res = await axios.get(`${API}/xxx`);
-  return res.data || [];
-}, [token]); // include token if using auth headers
+router = APIRouter(prefix="/xxx", tags=["xxx"])
 
-const { data: items, loading, reload: fetchData } = useStaleData(
-  "bm_xxx_cache",           // unique localStorage key
-  fetchXxx,
-  { errorMsg: "Failed to load XXX", fallback: [] }
-);
+@router.get("")
+async def list_xxx(current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    res = supabase.table("xxx").select("*").eq("user_id", current_user["id"]).execute()
+    return res.data or []
+
+@router.post("", status_code=201)
+async def create_xxx(body: XxxCreate, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    doc = {"id": str(uuid.uuid4()), "user_id": current_user["id"], **body.model_dump(),
+           "created_at": datetime.utcnow().isoformat()}
+    res = supabase.table("xxx").insert(doc).execute()
+    return res.data[0]
 ```
 
-3. Cache key naming: `bm_{feature}_cache`
-4. After every mutation (create/update/delete), call `fetchData()` (the `reload` from useStaleData)
-5. Loading state uses `PageLoader` component:
-```jsx
-if (loading) return (
-  <>
-    <Navigation />
-    <div className="min-h-[calc(100vh-80px)] bm-page-bg-xxx flex items-center justify-center">
-      <PageLoader message="Loading..." tips={["tip 1", "tip 2", "tip 3"]} />
-    </div>
-  </>
-);
+3. Register the router in `backend/app/main.py`:
+   - Import at the top: `from app.routers import ..., xxx`
+   - Add: `app.include_router(xxx.router, prefix=PREFIX)`
+
+### Key Differences from MongoDB Backend
+
+| MongoDB (`server.py`)                     | Supabase (`app/routers/`)                  |
+|-------------------------------------------|--------------------------------------------|
+| Single 9000-line file                     | One file per feature domain                |
+| `await db.collection.find(...)` (Motor)   | `supabase.table(...).select(...).execute()` |
+| `invalidate_user_cache(user_id)`          | No cache layer needed (Supabase is fast)   |
+| `current_user["_id"]` (ObjectId)          | `current_user["id"]` (UUID string)         |
+| `input.dict()`                            | `body.model_dump()`                        |
+
+### Important URL Notes
+
+- **Goals**: router prefix is `/savings-goals` (NOT `/goals`) to match mobile expectations
+- **Savings goals summary**: served at `/api/savings-goals-summary` from `categories.py` (no prefix router)
+- **Net worth**: served at `/api/net-worth` from `categories.py`
+- **Spending breakdown**: served at `/api/spending-breakdown` from `categories.py`
+- **Chanakya suggestions**: served at `/api/chanakya/suggestions` from `categories.py`
+- **Chatbot**: prefix is `/chatbot` — full route is `/api/chatbot`
+- **Notifications**: no router prefix — routes are `/api/notifications/prefs`, etc.
+
+### Adding a Chat Action
+
+1. Edit `backend/app/routers/chat.py`
+2. Add the action to the Claude system prompt string
+3. Add an `elif act == "action_name":` handler after existing handlers:
+
+```python
+elif act == "your_action":
+    # extract from data dict
+    supabase.table("xxx").insert({...}).execute()
+    reply += f"\n\n✅ Done! {summary}"
 ```
 
-### Select / Bulk Delete Pattern (web)
+### Current Chat Actions
+`add_income`, `add_expense`, `add_emi`, `emi_payment`, `add_goal`, `contribute_goal`, `add_investment`, `add_hand_loan`, `add_transaction`
 
-Every list page should have a Select button that toggles bulk delete mode:
+### Streaming Chat
 
-```jsx
-// State
-const [selectMode, setSelectMode] = useState(false);
-const [selected,   setSelected]   = useState(new Set());
+The chatbot has two endpoints:
+- `POST /api/chatbot` — standard JSON response
+- `POST /api/chatbot/stream` — SSE streaming (word-by-word at 22ms/word)
 
-// Button (in header)
-<Button
-  variant="outline" size="sm"
-  onClick={() => { setSelectMode(s => !s); setSelected(new Set()); }}
->
-  {selectMode ? 'Cancel' : 'Select'}   // ALWAYS "Select", never "Delete"
-</Button>
-
-// Bottom bar when items selected
-{selectMode && selected.size > 0 && (
-  <div className="fixed bottom-20 lg:bottom-6 left-0 right-0 lg:left-64 z-50 flex justify-center px-4">
-    <div className="bg-stone-900 text-white rounded-2xl px-5 py-3 flex items-center gap-4 shadow-2xl">
-      <span className="text-sm font-semibold">{selected.size} selected</span>
-      <button onClick={handleMultiDelete} className="bg-red-500 hover:bg-red-600 text-white text-sm font-bold px-4 py-1.5 rounded-xl">Delete</button>
-      <button onClick={() => { setSelectMode(false); setSelected(new Set()); }} className="text-stone-400 hover:text-white text-sm">Cancel</button>
-    </div>
-  </div>
-)}
-```
-
-### Navigation / More Drawer (web)
-
-To add a new page to the web nav, edit `frontend/src/components/Navigation.js`:
-- Find `MORE_GROUPS` array
-- Add item with `{ label, icon, path, bg, iconBg, iconColor }` to the right group
+The stream endpoint calls `_chat_core()` then streams words via `StreamingResponse`.
 
 ---
 
@@ -169,7 +222,7 @@ function XxxLoader() {
 fab: {
   position: 'absolute', bottom: 28, right: 20,
   width: 56, height: 56, borderRadius: 28,
-  backgroundColor: COLORS.primary,           // or feature color
+  backgroundColor: COLORS.primary,
   alignItems: 'center', justifyContent: 'center',
   shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.4, shadowRadius: 8, elevation: 8,
@@ -190,29 +243,14 @@ const toggleSelect = (id: string) => {
   });
 };
 
-const deleteSelected = () => {
-  Alert.alert('Delete', `Delete ${selected.size} item(s)?`, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: async () => {
-      await Promise.all([...selected].map(id => axios.delete(`${API}/xxx/${id}`, { headers })));
-      setSelected(new Set()); setSelectMode(false); fetchData();
-    }},
-  ]);
-};
-
-// Header button (Select / Cancel)
+// Header button
 {items.length > 0 && (
-  <TouchableOpacity
-    style={[s.selectBtn, selectMode && s.selectBtnActive]}
-    onPress={() => { setSelectMode(m => !m); setSelected(new Set()); }}
-  >
-    <Text style={[s.selectBtnTxt, selectMode && s.selectBtnTxtActive]}>
-      {selectMode ? 'Cancel' : 'Select'}
-    </Text>
+  <TouchableOpacity onPress={() => { setSelectMode(m => !m); setSelected(new Set()); }}>
+    <Text>{selectMode ? 'Cancel' : 'Select'}</Text>
   </TouchableOpacity>
 )}
 
-// Bulk delete bar (above FAB)
+// Bulk delete bar
 {selectMode && selected.size > 0 && (
   <View style={s.bulkBar}>
     <Text style={s.bulkTxt}>{selected.size} selected</Text>
@@ -228,7 +266,7 @@ const deleteSelected = () => {
 
 To add a new screen to the More tab, edit `src/screens/MoreScreen.tsx`:
 - Find `MENU_GROUPS` array
-- Add item to the right group: `{ icon: 'icon-outline', label: 'Label', screen: 'ScreenName', bg: '#xxx', iconColor: '#xxx' }`
+- Add item: `{ icon: 'icon-outline', label: 'Label', screen: 'ScreenName', bg: '#xxx', iconColor: '#xxx' }`
 - Register the screen in `src/navigation/index.tsx`
 
 ### Navigation from More Tab
@@ -245,57 +283,7 @@ export default function XxxScreen({ navigation }: { navigation: any }) {
 
 ---
 
-## Backend Patterns (`backend/server.py`)
-
-### Adding a New Endpoint
-
-All endpoints follow this pattern:
-```python
-@app.get("/xxx")
-async def get_xxx(current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["_id"])
-    items = await db.xxx.find({"user_id": user_id}).to_list(500)
-    for item in items:
-        item["_id"] = str(item["_id"])
-    return items
-
-@app.post("/xxx")
-async def create_xxx(input: XxxInput, current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["_id"])
-    doc = { "id": str(uuid.uuid4()), "user_id": user_id, **input.dict(), ... }
-    await db.xxx.insert_one(doc)
-    invalidate_user_cache(user_id)  # always call this after mutations
-    return doc
-```
-
-Always call `invalidate_user_cache(user_id)` after any mutation.
-
-### Adding a Chat Action
-
-1. Add the action description to the Claude system prompt in the `/chat` endpoint
-2. Add an `elif act == "action_name":` handler after the existing handlers
-3. Embed relevant context (e.g. active EMIs, goals) in the system prompt so Claude knows IDs
-
-```python
-elif act == "your_action":
-    # extract data from the `data` dict (JSON from Claude)
-    # perform DB operation
-    invalidate_user_cache(user_id)
-    reply += f"\n\n✅ Done! {summary_message}"
-```
-
-### Current Chat Actions
-`add_income`, `add_expense`, `add_emi`, `emi_payment`, `add_goal`, `contribute_goal`, `add_investment`, `add_hand_loan`, `add_transaction`
-
----
-
 ## Theme / Colors
-
-### Web (Tailwind)
-- Primary: `orange-500` (#f97316)
-- Page backgrounds: `bm-page-bg-{color}` class (defined in index.css)
-- Cards: `bg-white rounded-2xl border border-stone-100 shadow-sm`
-- Gradients: `bg-gradient-to-r from-orange-500 to-orange-600`
 
 ### Mobile
 ```ts
@@ -309,11 +297,30 @@ COLORS.bg        = '#fafaf9'  // warm white
 
 ---
 
+## Running Locally
+
+```bash
+# Start Supabase backend
+cd BudgetMantra-Supabase/backend
+source venv/bin/activate
+uvicorn app.main:app --reload --port 8001
+
+# Switch mobile to local
+# In BudgetMantra-Mobile/src/constants/api.ts:
+const ACTIVE_BACKEND = 'local';
+const LOCAL_IP = '<your Mac IP>';   # run: ipconfig getifaddr en0
+```
+
+---
+
 ## Common Mistakes to Avoid
 
 1. **Don't use `useEffect` for data fetching** — use `useStaleData` instead
-2. **Don't call `invalidate_user_cache` in GET endpoints** — only on mutations
-3. **Don't add `useFocusEffect` in mobile screens** — `useStaleData` handles it
-4. **Select button label must be "Select" not "Delete"** when not in select mode
-5. **Don't forget to add items to Navigation.js AND MoreScreen.tsx** when adding a new page
-6. **Mobile amounts can overflow** — always use `adjustsFontSizeToFit` + `numberOfLines={1}` + `minimumFontScale={0.7}` for currency values in cards
+2. **Don't add `useFocusEffect` in mobile screens** — `useStaleData` handles it
+3. **Select button label must be "Select" not "Delete"** when not in select mode
+4. **Don't forget to register new routers in `main.py`**
+5. **Goals router prefix is `/savings-goals`** — do not change it back to `/goals`
+6. **`/savings-goals-summary` and `/net-worth` live in `categories.py`** — they are top-level routes with no router prefix
+7. **Mobile amounts can overflow** — always use `adjustsFontSizeToFit` + `numberOfLines={1}` + `minimumFontScale={0.7}` for currency values in cards
+8. **Use `body.model_dump()` not `body.dict()`** — Pydantic v2 (used in Supabase backend)
+9. **User ID is `current_user["id"]`** (UUID string) — not `current_user["_id"]` like MongoDB

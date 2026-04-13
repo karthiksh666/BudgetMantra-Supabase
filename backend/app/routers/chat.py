@@ -10,6 +10,7 @@ import math
 from datetime import datetime, date
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import anthropic
 from app.auth import get_current_user
@@ -23,6 +24,8 @@ settings = get_settings()
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+
+    model_config = {"extra": "ignore"}   # silently accept pending_entries etc. from mobile
 
 
 def _today_ist() -> str:
@@ -118,8 +121,66 @@ async def clear_history(current_user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
-@router.post("")
-async def chat(body: ChatRequest, current_user: dict = Depends(get_current_user)):
+@router.get("/pinned")
+async def get_pinned(current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    res = (
+        supabase.table("chat_messages")
+        .select("*")
+        .eq("user_id", current_user["id"])
+        .eq("pinned", True)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+
+@router.get("/usage")
+async def get_chat_usage(current_user: dict = Depends(get_current_user)):
+    from datetime import datetime as _dt
+    today = _dt.utcnow().strftime("%Y-%m-%d")
+    supabase = get_supabase()
+    # Count messages sent by user today
+    res = (
+        supabase.table("chat_messages")
+        .select("id", count="exact")
+        .eq("user_id", current_user["id"])
+        .eq("role", "user")
+        .gte("created_at", today)
+        .execute()
+    )
+    is_pro  = current_user.get("is_pro", False)
+    limit   = 30 if is_pro else 10
+    used    = res.count or 0
+    return {"used": used, "limit": limit, "remaining": max(0, limit - used), "is_pro": is_pro}
+
+
+@router.delete("/message/{msg_id}")
+async def delete_message(msg_id: str, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    supabase.table("chat_messages").delete().eq("id", msg_id).eq("user_id", current_user["id"]).execute()
+    return {"ok": True}
+
+
+@router.put("/message/{msg_id}/pin")
+async def pin_message(msg_id: str, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    msg = supabase.table("chat_messages").select("pinned").eq("id", msg_id).eq("user_id", current_user["id"]).single().execute()
+    if not msg.data:
+        raise HTTPException(404, "Message not found")
+    new_pinned = not (msg.data.get("pinned") or False)
+    res = supabase.table("chat_messages").update({"pinned": new_pinned}).eq("id", msg_id).execute()
+    return res.data[0]
+
+
+@router.post("/upload")
+async def upload_attachment(current_user: dict = Depends(get_current_user)):
+    """Stub — returns placeholder. Full file upload can be wired to Supabase Storage."""
+    return {"url": None, "message": "File upload not yet configured for Supabase backend."}
+
+
+async def _chat_core(body: ChatRequest, current_user: dict) -> dict:
+    """Core chat logic — called by both /chatbot and /chatbot/stream."""
     supabase = get_supabase()
     user_id = current_user["id"]
     user_name = current_user.get("name") or "there"
@@ -349,6 +410,43 @@ Active trips: {trips_ctx}
         "asst_msg_id": asst_msg_id,
         "status": "success",
     }
+
+
+@router.post("")
+async def chat(body: ChatRequest, current_user: dict = Depends(get_current_user)):
+    return await _chat_core(body, current_user)
+
+
+@router.post("/stream")
+async def chat_stream(body: ChatRequest, current_user: dict = Depends(get_current_user)):
+    """Streaming Chanakya — SSE word-by-word reveal after Claude responds."""
+    import asyncio as _asyncio
+
+    async def generate():
+        try:
+            result = await _chat_core(body, current_user)
+            response_text = (result.get("response") or "").strip()
+
+            words = response_text.split(" ")
+            for i, word in enumerate(words):
+                if not word:
+                    continue
+                chunk = ("" if i == 0 else " ") + word
+                yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+                await _asyncio.sleep(0.022)   # ~45 words/sec
+
+            done_payload = {k: v for k, v in result.items() if k != "response"}
+            done_payload["type"] = "done"
+            yield f"data: {json.dumps(done_payload)}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'text': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
 
 
 def _table_exists(name: str) -> bool:

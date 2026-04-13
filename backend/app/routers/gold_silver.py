@@ -126,3 +126,39 @@ async def buy_goal_metal_prices(_: dict = Depends(get_current_user)):
             "source":    silver.get("source", "estimated"),
         },
     }
+
+
+@router.get("/gold/summary")
+async def gold_summary(current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    items = supabase.table("gold_items").select("*").eq("user_id", current_user["id"]).execute().data or []
+    total_weight   = sum(i.get("weight_grams") or 0 for i in items)
+    total_invested = sum((i.get("weight_grams") or 0) * (i.get("buy_price_per_gram") or 0) for i in items)
+    return {"count": len(items), "total_weight_grams": round(total_weight, 2), "total_invested": round(total_invested, 2), "items": items}
+
+
+@router.get("/silver/summary")
+async def silver_summary(current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    items = supabase.table("silver_items").select("*").eq("user_id", current_user["id"]).execute().data or []
+    total_weight   = sum(i.get("weight_grams") or 0 for i in items)
+    total_invested = sum((i.get("weight_grams") or 0) * (i.get("buy_price_per_gram") or 0) for i in items)
+    return {"count": len(items), "total_weight_grams": round(total_weight, 2), "total_invested": round(total_invested, 2), "items": items}
+
+
+@router.put("/gold/{item_id}")
+async def update_gold(item_id: str, body: GoldItemCreate, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    res = supabase.table("gold_items").update(body.model_dump()).eq("id", item_id).eq("user_id", current_user["id"]).execute()
+    if not res.data:
+        raise HTTPException(404, "Item not found")
+    return res.data[0]
+
+
+@router.put("/silver/{item_id}")
+async def update_silver(item_id: str, body: SilverItemCreate, current_user: dict = Depends(get_current_user)):
+    supabase = get_supabase()
+    res = supabase.table("silver_items").update(body.model_dump()).eq("id", item_id).eq("user_id", current_user["id"]).execute()
+    if not res.data:
+        raise HTTPException(404, "Item not found")
+    return res.data[0]

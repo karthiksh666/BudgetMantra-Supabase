@@ -5000,10 +5000,8 @@ async def get_chatbot_usage(current_user: dict = Depends(get_current_user)):
     remaining = max(0, daily_limit - used)
     return {"used": used, "limit": daily_limit, "remaining": remaining, "is_pro": is_pro}
 
-@api_router.post("/chatbot")
-@limiter.limit("20/minute")
-async def chatbot(request: Request, input: ChatbotRequest, current_user: dict = Depends(get_current_user)):
-    """AI Financial Advisor chatbot — Layer 1 intent engine + Layer 2 Claude fallback"""
+async def _chatbot_impl(request: Request, input: ChatbotRequest, current_user: dict):
+    """AI Financial Advisor chatbot — Layer 1 intent engine + Layer 2 Claude fallback (core logic)"""
     import json as _json
     from intent_engine import parse_message, format_bulk_response, format_single_response, format_confirmation_request, infer_income_source_type
     try:
@@ -7083,6 +7081,55 @@ If you cannot determine the action or the message is a question/advice request, 
             pass
 
         return {"response": msg, "status": "error"}
+
+
+# ── Thin wrapper keeps the original /chatbot route working unchanged ──────────
+@api_router.post("/chatbot")
+@limiter.limit("20/minute")
+async def chatbot(request: Request, input: ChatbotRequest, current_user: dict = Depends(get_current_user)):
+    return await _chatbot_impl(request, input, current_user)
+
+
+# ── Streaming endpoint — SSE word-by-word reveal ──────────────────────────────
+@api_router.post("/chatbot/stream")
+@limiter.limit("20/minute")
+async def chatbot_stream(request: Request, input: ChatbotRequest, current_user: dict = Depends(get_current_user)):
+    """Streaming Chanakya — returns Server-Sent Events with word-by-word text reveal."""
+    import json as _json_sse
+    import asyncio as _asyncio_sse
+
+    async def generate():
+        try:
+            result = await _chatbot_impl(request, input, current_user)
+            response_text = (result.get("response") or "").strip()
+
+            # Stream response word by word for natural feel
+            words = response_text.split(" ")
+            for i, word in enumerate(words):
+                if not word:
+                    continue
+                chunk = ("" if i == 0 else " ") + word
+                yield f"data: {_json_sse.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+                await _asyncio_sse.sleep(0.022)   # ~45 words / sec
+
+            # Done event — carries all metadata (pending_entries, status, etc.)
+            done_payload = {k: v for k, v in result.items() if k != "response"}
+            done_payload["type"] = "done"
+            yield f"data: {_json_sse.dumps(done_payload)}\n\n"
+
+        except Exception as _e:
+            yield f"data: {_json_sse.dumps({'type': 'error', 'text': str(_e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
 
 @api_router.get("/")
 async def root():

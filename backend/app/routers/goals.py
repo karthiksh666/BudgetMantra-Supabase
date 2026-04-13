@@ -6,7 +6,7 @@ import uuid
 from app.auth import get_current_user
 from app.database import get_supabase
 
-router = APIRouter(prefix="/goals", tags=["goals"])
+router = APIRouter(prefix="/savings-goals", tags=["goals"])
 
 
 class GoalCreate(BaseModel):
@@ -98,7 +98,7 @@ async def contribute(goal_id: str, body: ContributionCreate, current_user: dict 
 
 # ── Savings Goals Summary (Dashboard) ────────────────────────────────────────
 
-@router.get("/savings-goals-summary")
+@router.get("/summary")
 async def savings_goals_summary(current_user: dict = Depends(get_current_user)):
     supabase = get_supabase()
     goals = supabase.table("savings_goals").select("*").eq("user_id", current_user["id"]).execute()
