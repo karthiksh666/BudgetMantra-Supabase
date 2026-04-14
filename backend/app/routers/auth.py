@@ -29,7 +29,12 @@ class LoginInput(BaseModel):
 
 class OtpVerifyInput(BaseModel):
     email: EmailStr
-    token: str          # 6-digit OTP from Supabase email
+    token: str = ""     # 6-digit OTP from Supabase email
+    otp: str = ""       # alias used by older mobile builds
+
+    @property
+    def resolved_token(self) -> str:
+        return self.token or self.otp
 
 class GoogleInput(BaseModel):
     id_token: str       # Google ID token from frontend
@@ -126,7 +131,7 @@ async def verify_otp(body: OtpVerifyInput):
     try:
         res = supabase.auth.verify_otp({
             "email": body.email,
-            "token": body.token,
+            "token": body.resolved_token,
             "type": "signup",
         })
     except Exception as e:
