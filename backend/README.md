@@ -1,430 +1,375 @@
-# Backend - Budget Mantra API
+# Budget Mantra — Backend API
 
-FastAPI backend for Budget Mantra fintech application.
+FastAPI backend for the Budget Mantra personal finance platform. Backed by Supabase (PostgreSQL), deployed on Railway.
 
-## 🛠️ Tech Stack
+---
 
-- **FastAPI** - Modern, fast web framework for building APIs
-- **Motor** - Async MongoDB driver for Python
-- **Pydantic** - Data validation using Python type annotations
-- **python-jose** - JWT token implementation
-- **passlib** - Password hashing with bcrypt
-- **emergentintegrations** - LLM integration for Chanakya chatbot
+## Tech Stack
 
-## 📁 Project Structure
+| Layer | Technology |
+|-------|-----------|
+| Framework | FastAPI 0.109+ |
+| Database | Supabase (PostgreSQL + Auth) |
+| Auth | Supabase JWT (HS256 / ES256) |
+| AI | Anthropic Claude (Chanakya chatbot) |
+| Scheduler | APScheduler |
+| Hosting | Railway |
+| Python | 3.11+ |
+
+---
+
+## Project Structure
 
 ```
 backend/
-├── server.py           # Main application file
-│   ├── Models          # Pydantic models (User, EMI, Transaction, etc.)
-│   ├── Auth Routes     # /api/auth/* endpoints
-│   ├── Budget Routes   # /api/categories, /api/budget-summary
-│   ├── EMI Routes      # /api/emis/*
-│   ├── Transaction     # /api/transactions
-│   ├── Savings Goals   # /api/savings-goals/*
-│   ├── AI Routes       # /api/chatbot, /api/financial-score
-│   └── Family Routes   # /api/family/*
-├── requirements.txt    # Python dependencies
-├── .env               # Environment variables (not in git)
-├── .env.example       # Example environment file
-└── tests/             # Test files
-    └── test_api.py
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.9+
-- MongoDB 6.x+
-- pip or pipenv
-
-### Installation
-
-```bash
-# Navigate to backend directory
-cd backend
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-source venv/bin/activate  # Linux/Mac
-# or
-venv\Scripts\activate     # Windows
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install emergentintegrations for AI features
-pip install emergentintegrations --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
-```
-
-### Environment Setup
-
-Create a `.env` file:
-
-```env
-# MongoDB
-MONGO_URL="mongodb://localhost:27017"
-DB_NAME="budget_mantra"
-
-# JWT Security (generate a strong secret for production)
-JWT_SECRET_KEY="your-super-secret-jwt-key-minimum-32-characters"
-
-# CORS Origins (comma-separated or * for all)
-CORS_ORIGINS="http://localhost:3000,https://yourdomain.com"
-
-# AI Integration
-# Option 1: Emergent LLM Key (works with Claude, GPT, Gemini)
-EMERGENT_LLM_KEY="sk-emergent-xxxxx"
-
-# Option 2: Direct Anthropic Key (requires code changes)
-# ANTHROPIC_API_KEY="sk-ant-xxxxx"
-```
-
-### Run Development Server
-
-```bash
-# With hot reload
-uvicorn server:app --reload --host 0.0.0.0 --port 8001
-
-# Or with Python
-python -m uvicorn server:app --reload --port 8001
-```
-
-Access API documentation at:
-- Swagger UI: http://localhost:8001/docs
-- ReDoc: http://localhost:8001/redoc
-
-## 📚 API Reference
-
-### Authentication
-
-#### Register User
-```http
-POST /api/auth/register
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "securepassword",
-  "name": "John Doe"
-}
-```
-
-#### Login
-```http
-POST /api/auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "securepassword"
-}
-
-Response:
-{
-  "access_token": "eyJ...",
-  "token_type": "bearer",
-  "user": { "id": "...", "email": "...", "name": "..." }
-}
-```
-
-### Protected Routes
-
-All routes except `/api/auth/*` require authentication:
-
-```http
-Authorization: Bearer <access_token>
-```
-
-### Budget Categories
-
-```http
-# Get all categories
-GET /api/categories
-
-# Create category
-POST /api/categories
-{
-  "name": "Groceries",
-  "type": "expense",
-  "allocated_amount": 10000
-}
-
-# Update category
-PUT /api/categories/{id}
-{
-  "spent_amount": 5000
-}
-
-# Delete category
-DELETE /api/categories/{id}
-
-# Get budget summary
-GET /api/budget-summary
-Response: { "total_income": 50000, "total_expenses": 30000, "remaining_budget": 20000 }
-```
-
-### EMI Management
-
-```http
-# Get all EMIs
-GET /api/emis
-
-# Create EMI
-POST /api/emis
-{
-  "loan_name": "Car Loan",
-  "principal_amount": 500000,
-  "interest_rate": 8.5,
-  "tenure_months": 60,
-  "start_date": "2024-01-01"
-}
-
-# Record payment
-POST /api/emis/{id}/payment
-{
-  "amount": 10000,
-  "extra_payment": 5000
-}
-
-# Get prepayment recommendations
-GET /api/emis/recommendations
-```
-
-### Savings Goals
-
-```http
-# Get all goals
-GET /api/savings-goals
-
-# Create goal
-POST /api/savings-goals
-{
-  "name": "New iPhone",
-  "target_amount": 120000,
-  "target_date": "2025-06-30",
-  "category": "electronics",
-  "priority": "high"
-}
-
-# Add contribution
-POST /api/savings-goals/{id}/contribute
-{
-  "amount": 10000
-}
-
-# Get summary with smart alerts
-GET /api/savings-goals-summary
-```
-
-### Chanakya AI Chatbot
-
-```http
-POST /api/chatbot
-{
-  "message": "How can I save more money?",
-  "conversation_history": [
-    { "role": "user", "content": "previous message" },
-    { "role": "assistant", "content": "previous response" }
-  ]
-}
-
-Response:
-{
-  "response": "Based on your financial data...",
-  "status": "success"
-}
-```
-
-### Financial Health Score
-
-```http
-GET /api/financial-score
-
-Response:
-{
-  "score": 75,
-  "status": "green",
-  "expense_ratio": 40,
-  "emi_ratio": 20,
-  "savings_ratio": 25,
-  "message": "Your finances are healthy!",
-  "recommendations": ["Consider increasing emergency fund", "..."]
-}
-```
-
-## 🗃️ Database Schema
-
-### Users Collection
-```javascript
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "hashed_password": "bcrypt_hash",
-  "name": "John Doe",
-  "family_group_id": "uuid | null",
-  "created_at": "2024-01-01T00:00:00Z"
-}
-```
-
-### Budget Categories Collection
-```javascript
-{
-  "id": "uuid",
-  "user_id": "uuid",
-  "family_group_id": "uuid | null",
-  "name": "Groceries",
-  "type": "expense | income",
-  "allocated_amount": 10000,
-  "spent_amount": 5000,
-  "created_at": "2024-01-01T00:00:00Z"
-}
-```
-
-### EMIs Collection
-```javascript
-{
-  "id": "uuid",
-  "user_id": "uuid",
-  "loan_name": "Car Loan",
-  "principal_amount": 500000,
-  "interest_rate": 8.5,
-  "tenure_months": 60,
-  "monthly_payment": 10250,
-  "remaining_balance": 400000,
-  "paid_months": 10,
-  "status": "active | completed",
-  "start_date": "2024-01-01"
-}
-```
-
-### Savings Goals Collection
-```javascript
-{
-  "id": "uuid",
-  "user_id": "uuid",
-  "name": "New iPhone",
-  "target_amount": 120000,
-  "current_amount": 25000,
-  "target_date": "2025-06-30",
-  "category": "electronics",
-  "priority": "high",
-  "status": "active | completed | paused",
-  "created_at": "2024-01-01T00:00:00Z"
-}
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=. --cov-report=html
-
-# Test specific endpoint
-pytest tests/test_api.py::test_auth_register -v
-```
-
-### Manual Testing with curl
-
-```bash
-# Set base URL
-API_URL="http://localhost:8001/api"
-
-# Register
-curl -X POST "$API_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"test123","name":"Test"}'
-
-# Login and get token
-TOKEN=$(curl -s -X POST "$API_URL/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"test123"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
-
-# Use token for protected routes
-curl "$API_URL/categories" -H "Authorization: Bearer $TOKEN"
-```
-
-## 🔐 Security Notes
-
-1. **JWT Secret**: Use a strong, random secret (min 32 chars) in production
-2. **CORS**: Configure specific origins in production, not `*`
-3. **MongoDB**: Use authentication and TLS in production
-4. **Rate Limiting**: Consider adding rate limiting for production
-5. **Input Validation**: All inputs are validated via Pydantic models
-
-## 🚢 Production Deployment
-
-### Environment Variables for Production
-```env
-MONGO_URL="mongodb+srv://user:pass@cluster.mongodb.net/budget_mantra"
-DB_NAME="budget_mantra_prod"
-JWT_SECRET_KEY="<generate-strong-secret>"
-CORS_ORIGINS="https://yourdomain.com"
-EMERGENT_LLM_KEY="<your-key>"
-```
-
-### Run with Gunicorn
-```bash
-gunicorn server:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8001
-```
-
-### Docker
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-RUN pip install emergentintegrations --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
-COPY . .
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001"]
-```
-
-## 📝 Extending the API
-
-### Adding a New Endpoint
-
-1. Define Pydantic model in `server.py`:
-```python
-class NewFeature(BaseModel):
-    name: str
-    value: float
-```
-
-2. Add route:
-```python
-@api_router.post("/new-feature")
-async def create_feature(input: NewFeature, current_user: dict = Depends(get_current_user)):
-    # Your logic here
-    return {"message": "Created"}
-```
-
-3. Update tests in `tests/test_api.py`
-
-### Swapping AI Provider
-
-To use your own Anthropic key instead of Emergent:
-
-```python
-# In server.py, replace emergentintegrations usage with:
-from anthropic import Anthropic
-
-client = Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-
-# In chatbot endpoint:
-response = client.messages.create(
-    model="claude-sonnet-4-5-20250929",
-    max_tokens=1024,
-    system=system_message,
-    messages=[{"role": "user", "content": input.message}]
-)
-return {"response": response.content[0].text, "status": "success"}
+├── app/
+│   ├── main.py              # App entry point, router registration
+│   ├── auth.py              # JWT decode + get_current_user dependency
+│   ├── database.py          # Supabase client singletons (auth + admin)
+│   ├── config.py            # Settings (pydantic-settings, reads .env)
+│   ├── scheduler.py         # APScheduler recurring tasks
+│   └── routers/
+│       ├── auth.py          # Register, login, Google OAuth, profile
+│       ├── transactions.py  # Income/expense transactions
+│       ├── emis.py          # EMI tracking + payments + foreclose
+│       ├── goals.py         # Savings goals (prefix: /savings-goals)
+│       ├── investments.py   # Investment portfolio + summaries
+│       ├── chat.py          # Chanakya AI chatbot + streaming
+│       ├── hand_loans.py    # Hand loans (given/taken) + summary
+│       ├── subscriptions.py # Subscriptions
+│       ├── categories.py    # Categories, budget-summary, net-worth, spending-breakdown
+│       ├── gold_silver.py   # Gold/silver holdings + price lookups
+│       ├── expense_groups.py# Group expense splitting
+│       ├── calendar.py      # Calendar events + people events
+│       ├── paychecks.py     # Paycheck history
+│       ├── jobs.py          # Job/career timeline
+│       ├── luxury_items.py  # Luxury items tracker
+│       ├── children.py      # Children expense tracking
+│       ├── gifts.py         # Gift planning
+│       ├── timeline.py      # Life events timeline
+│       ├── nominees.py      # Nominee management
+│       ├── piggy_bank.py    # Piggy bank / savings jars
+│       ├── market.py        # Stock/MF price lookups (yfinance)
+│       ├── sms.py           # SMS transaction parser
+│       ├── financial_score.py # Financial health score + history
+│       ├── fire_goal.py     # FIRE goal (GET/POST/DELETE, one per user)
+│       ├── income_entries.py# Income entries
+│       ├── recurring_expenses.py # Recurring expenses
+│       ├── credit_cards.py  # Credit cards + expenses
+│       ├── trips.py         # Trip planner
+│       ├── notifications.py # Push notification prefs + tokens
+│       ├── circle.py        # Shared expense circles
+│       ├── feedback.py      # User feedback
+│       ├── admin.py         # Admin tools
+│       └── reset.py         # Data reset endpoints
+└── requirements.txt
 ```
 
 ---
 
-For more details, see the main [README.md](../README.md).
+## API Reference
+
+All routes are mounted at `/api`. E.g. `POST /api/auth/login`.
+
+### Authentication (`/api/auth`)
+
+```
+POST /api/auth/register            Register new user
+POST /api/auth/login               Login with email + password
+POST /api/auth/verify-otp          Verify email OTP (signup / magic link)
+POST /api/auth/resend-otp          Resend signup OTP
+POST /api/auth/forgot-password     Send password reset email
+POST /api/auth/reset-password      Set new password via recovery token
+POST /api/auth/google              Google ID token → Supabase session
+GET  /api/auth/me                  Get current user profile
+PUT  /api/auth/profile             Update profile (name, phone, currency…)
+PUT  /api/auth/change-password     Change password (requires current password)
+POST /api/auth/onboarding-complete Mark onboarding done
+DELETE /api/auth/account           Delete account (cascades all data)
+POST /api/auth/toggle-pro          Toggle pro status (dev/testing)
+```
+
+All protected routes require:
+```
+Authorization: Bearer <supabase_access_token>
+```
+
+### Transactions (`/api/transactions`)
+```
+GET    /api/transactions           List transactions (filterable by date/type)
+POST   /api/transactions           Create transaction
+PUT    /api/transactions/{id}      Update transaction
+DELETE /api/transactions/{id}      Delete transaction
+DELETE /api/transactions/bulk      Bulk delete
+```
+
+### EMIs (`/api/emis`)
+```
+GET    /api/emis                   List EMIs
+POST   /api/emis                   Create EMI
+PUT    /api/emis/{id}              Update EMI
+DELETE /api/emis/{id}              Delete EMI
+POST   /api/emis/{id}/payment      Record payment
+POST   /api/emis/{id}/foreclose    Foreclose EMI
+GET    /api/emis/recommendations   Prepayment recommendations
+```
+
+### Savings Goals (`/api/savings-goals`)
+```
+GET    /api/savings-goals          List goals
+POST   /api/savings-goals          Create goal
+PUT    /api/savings-goals/{id}     Update goal
+DELETE /api/savings-goals/{id}     Delete goal
+POST   /api/savings-goals/{id}/contribute  Add contribution
+GET    /api/savings-goals-summary  Smart summary + alerts
+```
+
+### Investments (`/api/investments`)
+```
+GET    /api/investments            List investments
+POST   /api/investments            Add investment
+PUT    /api/investments/{id}       Update investment
+DELETE /api/investments/{id}       Delete investment
+GET    /api/investments/summary    Portfolio summary
+```
+
+### Chanakya AI Chatbot (`/api/chatbot`)
+```
+POST   /api/chatbot                Standard JSON response
+POST   /api/chatbot/stream         SSE word-by-word streaming (22ms/word)
+GET    /api/chanakya/suggestions   Proactive spending suggestions
+```
+
+**Supported chat actions** (extracted by Claude from message):
+`add_income`, `add_expense`, `add_emi`, `emi_payment`, `add_goal`,
+`contribute_goal`, `add_investment`, `add_hand_loan`, `add_transaction`
+
+### Financial Score (`/api/financial-score`)
+```
+GET    /api/financial-score               Current score + breakdown
+GET    /api/financial-score/history       6-month trend (default)
+```
+
+Response includes: score (0–100), status (red/yellow/green), expense_ratio, emi_ratio, savings_ratio, recommendations.
+
+### Categories & Summaries
+```
+GET    /api/categories             Budget categories
+POST   /api/categories             Create category
+PUT    /api/categories/{id}        Update category
+DELETE /api/categories/{id}        Delete category
+GET    /api/budget-summary         Total income / expenses / remaining
+GET    /api/net-worth              Net worth calculation
+GET    /api/spending-breakdown     Category-wise breakdown
+```
+
+### FIRE Goal (`/api/fire-goal`)
+```
+GET    /api/fire-goal              Get FIRE goal (one per user)
+POST   /api/fire-goal              Create/update FIRE goal (upsert)
+DELETE /api/fire-goal              Delete FIRE goal
+```
+
+### Other Endpoints
+
+| Router | Prefix | Notable endpoints |
+|--------|--------|-------------------|
+| Hand Loans | `/api/hand-loans` | CRUD + `/summary` |
+| Subscriptions | `/api/subscriptions` | CRUD |
+| Gold/Silver | `/api/gold`, `/api/silver` | Holdings + live price lookup |
+| Expense Groups | `/api/expense-groups` | Group splitting + settle |
+| Calendar | `/api/calendar` | Events + people events |
+| Paychecks | `/api/paychecks` | Paycheck history |
+| Jobs | `/api/jobs` | Career timeline |
+| Luxury Items | `/api/luxury-items` | CRUD |
+| Children | `/api/children` | Children expenses |
+| Gifts | `/api/gifts` | Gift planning |
+| Life Timeline | `/api/timeline` | Life events |
+| Nominees | `/api/nominees` | Nominee management |
+| Piggy Bank | `/api/piggy-bank` | Savings jars |
+| Market | `/api/market` | Stock/MF price lookup |
+| SMS Parser | `/api/sms` | Parse SMS transactions |
+| Income Entries | `/api/income-entries` | Income records |
+| Recurring | `/api/recurring-expenses` | Recurring expenses |
+| Credit Cards | `/api/credit-cards` | CC + CC expenses |
+| Trips | `/api/trips` | Trip planner |
+| Notifications | `/api/notifications` | Push prefs + tokens |
+| Circle | `/api/circle` | Shared expense circles |
+| Feedback | `/api/feedback` | User feedback |
+| Admin | `/api/admin` | Admin tools |
+| Reset | `/api/reset` | Clear user data |
+
+---
+
+## Important URL Notes
+
+> These are common sources of bugs — don't rename them.
+
+- Goals prefix is `/savings-goals` — not `/goals`
+- `GET /api/savings-goals-summary` lives in `categories.py` (no router prefix)
+- `GET /api/net-worth` lives in `categories.py`
+- `GET /api/spending-breakdown` lives in `categories.py`
+- `GET /api/chanakya/suggestions` lives in `categories.py`
+- Chatbot prefix is `/chatbot` → full path `/api/chatbot`
+- Financial score history: `GET /api/financial-score/history?months=6`
+- FIRE goal is one per user, POST does upsert
+
+---
+
+## Database Architecture
+
+### Two Supabase Clients
+
+`database.py` maintains two separate singleton clients:
+
+```python
+get_supabase()    # Auth-only client — use ONLY for supabase.auth.* calls
+get_admin_db()    # DB client — use for ALL .table() operations
+```
+
+**Why two clients?** `supabase-py` mutates the client's internal session after `sign_up()` / `sign_in_with_password()`. If the same client is used for both auth and table operations, its service-role authorization header gets replaced by the user JWT, causing all subsequent DB queries to fail with RLS errors.
+
+**Rule:** Never call `.table()` on `get_supabase()`. Never call `supabase.auth.*` on `get_admin_db()`.
+
+### Authentication Flow
+
+1. Client calls `POST /api/auth/login` with email + password
+2. Backend calls `supabase.auth.sign_in_with_password()` on the auth client
+3. Supabase returns a JWT (ES256, signed with ECDSA key)
+4. Backend returns `{ access_token, refresh_token, user: <profile row> }`
+5. Client stores token and sends it as `Authorization: Bearer <token>` on all subsequent requests
+6. `get_current_user` dependency: decodes JWT locally (tries HS256 then ES256 via JWKS), looks up profile in `profiles` table using admin client
+
+---
+
+## Local Development
+
+### Prerequisites
+- Python 3.11+
+- A Supabase project (free tier is fine)
+
+### Setup
+
+```bash
+cd BudgetMantra-Supabase/backend
+
+python -m venv venv
+source venv/bin/activate       # Linux/Mac
+# or: venv\Scripts\activate    # Windows
+
+pip install -r requirements.txt
+```
+
+### Environment Variables
+
+Create a `.env` file:
+
+```env
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# From Supabase → Settings → API → JWT Secret
+JWT_SECRET=your-jwt-secret
+
+# From Anthropic console
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional
+GOOGLE_CLIENT_ID=
+CORS_ORIGINS=http://localhost:3000,http://localhost:8081
+APP_URL=http://localhost:3000
+```
+
+### Run
+
+```bash
+uvicorn app.main:app --reload --port 8001
+```
+
+API docs at:
+- Swagger UI: http://localhost:8001/docs
+- ReDoc: http://localhost:8001/redoc
+
+---
+
+## Adding a New Endpoint
+
+1. Create or edit the router in `app/routers/`
+
+```python
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from app.auth import get_current_user
+from app.database import get_admin_db
+import uuid
+from datetime import datetime, timezone
+
+router = APIRouter(prefix="/xxx", tags=["xxx"])
+
+class XxxCreate(BaseModel):
+    name: str
+    amount: float
+
+@router.get("")
+async def list_xxx(current_user: dict = Depends(get_current_user)):
+    res = get_admin_db().table("xxx").select("*").eq("user_id", current_user["id"]).execute()
+    return res.data or []
+
+@router.post("", status_code=201)
+async def create_xxx(body: XxxCreate, current_user: dict = Depends(get_current_user)):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user["id"],
+        **body.model_dump(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = get_admin_db().table("xxx").insert(doc).execute()
+    return res.data[0]
+```
+
+2. Register in `app/main.py`:
+```python
+from app.routers import xxx
+app.include_router(xxx.router, prefix="/api")
+```
+
+3. Add a chat action in `app/routers/chat.py` so Chanakya can use it.
+
+---
+
+## Adding a Chat Action
+
+1. Add the action name + description to the Claude system prompt in `chat.py`
+2. Add a handler:
+
+```python
+elif act == "your_action":
+    amount = float(data.get("amount", 0))
+    get_admin_db().table("xxx").insert({...}).execute()
+    reply += f"\n\n✅ Done! {summary}"
+```
+
+---
+
+## Deployment (Railway)
+
+The backend auto-deploys from the `main` branch of the GitHub repo.
+
+**Environment variables** must be set in the Railway dashboard (same keys as `.env`).
+
+**Important:** The `postgrest` package is **not** pinned in `requirements.txt` — it is managed as a dependency of `supabase`. Do not add an explicit `postgrest` pin; doing so will install an incompatible older version and break all DB operations.
+
+---
+
+## Key Conventions
+
+| Convention | Detail |
+|-----------|--------|
+| User ID field | `current_user["id"]` (UUID string) — not `_id` |
+| Pydantic v2 | Use `body.model_dump()` — not `body.dict()` |
+| Timestamps | `datetime.now(timezone.utc).isoformat()` |
+| DB client | Always `get_admin_db()` for `.table()` calls |
+| Auth client | Always `get_supabase()` for `supabase.auth.*` calls |
+| Error format | Raise `HTTPException(status_code, detail=str)` |
+| New IDs | `str(uuid.uuid4())` |
