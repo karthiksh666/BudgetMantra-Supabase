@@ -131,6 +131,15 @@ async def login(body: LoginInput):
     except Exception:
         pass
     profile = _get_profile(res.user.id)
+    # Backfill name from Supabase auth metadata if profile has no name
+    if not profile.get("name"):
+        meta_name = (res.user.user_metadata or {}).get("name") or (res.user.user_metadata or {}).get("full_name") or ""
+        if meta_name:
+            try:
+                get_admin_db().table("profiles").update({"name": meta_name}).eq("id", res.user.id).execute()
+                profile["name"] = meta_name
+            except Exception:
+                pass
     return {
         "access_token": res.session.access_token,
         "refresh_token": res.session.refresh_token,
@@ -152,11 +161,21 @@ async def verify_otp(body: OtpVerifyInput):
         raise HTTPException(400, "Invalid or expired OTP")
 
     if res.user:
+        meta_name = (res.user.user_metadata or {}).get("name") or (res.user.user_metadata or {}).get("full_name") or ""
         try:
-            _ensure_profile(res.user.id, email=body.email)
+            _ensure_profile(res.user.id, name=meta_name, email=body.email)
         except Exception:
             pass
     profile = _get_profile(res.user.id)
+    # Backfill name if still missing
+    if not profile.get("name") and res.user:
+        meta_name = (res.user.user_metadata or {}).get("name") or (res.user.user_metadata or {}).get("full_name") or ""
+        if meta_name:
+            try:
+                get_admin_db().table("profiles").update({"name": meta_name}).eq("id", res.user.id).execute()
+                profile["name"] = meta_name
+            except Exception:
+                pass
     return {
         "access_token": res.session.access_token,
         "refresh_token": res.session.refresh_token,
