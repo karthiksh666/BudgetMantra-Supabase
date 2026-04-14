@@ -31,6 +31,7 @@ class OtpVerifyInput(BaseModel):
     email: EmailStr
     token: str = ""     # 6-digit OTP from Supabase email
     otp: str = ""       # alias used by older mobile builds
+    type: str = "signup"  # signup | magiclink | email | recovery
 
     @property
     def resolved_token(self) -> str:
@@ -145,7 +146,7 @@ async def verify_otp(body: OtpVerifyInput):
         res = supabase.auth.verify_otp({
             "email": body.email,
             "token": body.resolved_token,
-            "type": "signup",
+            "type": body.type,
         })
     except Exception as e:
         raise HTTPException(400, "Invalid or expired OTP")

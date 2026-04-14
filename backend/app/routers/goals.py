@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import uuid
 from app.auth import get_current_user
 from app.database import get_supabase
@@ -49,7 +49,7 @@ async def create_goal(body: GoalCreate, current_user: dict = Depends(get_current
         "id": str(uuid.uuid4()),
         "user_id": current_user["id"],
         **body.model_dump(),
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     res = supabase.table("savings_goals").insert(doc).execute()
     return res.data[0]
@@ -85,8 +85,8 @@ async def contribute(goal_id: str, body: ContributionCreate, current_user: dict 
         "user_id": current_user["id"],
         "amount": body.amount,
         "note": body.note,
-        "date": body.date or datetime.utcnow().date().isoformat(),
-        "created_at": datetime.utcnow().isoformat(),
+        "date": body.date or datetime.now(timezone.utc).date().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     supabase.table("goal_contributions").insert(contribution).execute()
 

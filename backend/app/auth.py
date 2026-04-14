@@ -10,7 +10,7 @@ import httpx
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.config import get_settings
-from app.database import get_supabase
+from app.database import get_admin_db
 
 bearer = HTTPBearer()
 settings = get_settings()
@@ -75,12 +75,10 @@ async def get_current_user(
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
-    supabase = get_supabase()
-    result = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
+    result = get_admin_db().table("profiles").select("*").eq("id", user_id).execute()
     if not result.data:
         raise HTTPException(status_code=401, detail="User not found")
-
-    return result.data
+    return result.data[0]
 
 
 def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
