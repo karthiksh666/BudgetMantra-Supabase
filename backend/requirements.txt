@@ -9,7 +9,6 @@ pydantic-settings>=2.4,<3.0
 
 # Database — Supabase (replaces motor + pymongo)
 supabase>=2.7,<3.0
-postgrest>=0.16,<1.0
 
 # Auth / Security
 PyJWT>=2.7,<3.0
