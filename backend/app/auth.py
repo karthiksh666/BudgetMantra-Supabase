@@ -75,10 +75,15 @@ async def get_current_user(
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
-    result = get_admin_db().table("profiles").select("*").eq("id", user_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=401, detail="User not found")
-    return result.data[0]
+    try:
+        result = get_admin_db().table("profiles").select("*").eq("id", user_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=401, detail="User not found")
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Profile lookup failed: {type(e).__name__}: {e}")
 
 
 def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
