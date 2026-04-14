@@ -8,7 +8,7 @@ Supabase JWT directly to the client.
 """
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
-from app.database import get_supabase
+from app.database import get_supabase, get_admin_db
 from app.auth import get_current_user
 from app.config import get_settings
 
@@ -63,11 +63,12 @@ class ProfileUpdate(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _ensure_profile(supabase, user_id: str, name: str = "", email: str = ""):
+def _ensure_profile(user_id: str, name: str = "", email: str = ""):
     """Create a profiles row if it doesn't exist yet (called after sign-up)."""
-    existing = supabase.table("profiles").select("id").eq("id", user_id).execute()
+    db = get_admin_db()
+    existing = db.table("profiles").select("id").eq("id", user_id).execute()
     if not existing.data:
-        supabase.table("profiles").insert({
+        db.table("profiles").insert({
             "id": user_id,
             "name": name,
             "email": email,
@@ -80,10 +81,10 @@ def _ensure_profile(supabase, user_id: str, name: str = "", email: str = ""):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-def _get_profile(supabase, user_id: str) -> dict:
+def _get_profile(user_id: str) -> dict:
     """Fetch profile row, returning a minimal dict if not found."""
     try:
-        res = supabase.table("profiles").select("*").eq("id", user_id).execute()
+        res = get_admin_db().table("profiles").select("*").eq("id", user_id).execute()
         return res.data[0] if res.data else {"id": user_id}
     except Exception:
         return {"id": user_id}
@@ -103,12 +104,12 @@ async def register(body: RegisterInput):
 
     if res.user:
         try:
-            _ensure_profile(supabase, res.user.id, body.name, body.email)
+            _ensure_profile(res.user.id, body.name, body.email)
         except Exception:
-            pass  # profile creation failure doesn't block auth
+            pass
 
     if res.session:
-        profile = _get_profile(supabase, res.user.id)
+        profile = _get_profile(res.user.id)
         return {"access_token": res.session.access_token, "user": profile}
     return {"pending": True, "email": body.email, "name": body.name}
 
@@ -125,10 +126,10 @@ async def login(body: LoginInput):
         raise HTTPException(401, "Invalid email or password")
 
     try:
-        _ensure_profile(supabase, res.user.id, email=body.email)
+        _ensure_profile(res.user.id, email=body.email)
     except Exception:
         pass
-    profile = _get_profile(supabase, res.user.id)
+    profile = _get_profile(res.user.id)
     return {
         "access_token": res.session.access_token,
         "refresh_token": res.session.refresh_token,
@@ -151,10 +152,10 @@ async def verify_otp(body: OtpVerifyInput):
 
     if res.user:
         try:
-            _ensure_profile(supabase, res.user.id, email=body.email)
+            _ensure_profile(res.user.id, email=body.email)
         except Exception:
             pass
-    profile = _get_profile(supabase, res.user.id)
+    profile = _get_profile(res.user.id)
     return {
         "access_token": res.session.access_token,
         "refresh_token": res.session.refresh_token,
@@ -204,7 +205,7 @@ async def google_auth(body: GoogleInput):
     except Exception as e:
         raise HTTPException(401, "Google authentication failed")
 
-    _ensure_profile(supabase, res.user.id, email=res.user.email or "")
+    _ensure_profile(res.user.id, email=res.user.email or "")
     return {
         "access_token": res.session.access_token,
         "refresh_token": res.session.refresh_token,
@@ -219,11 +220,10 @@ async def me(current_user: dict = Depends(get_current_user)):
 
 @router.put("/profile")
 async def update_profile(body: ProfileUpdate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
     updates = body.model_dump(exclude_none=True)
     if not updates:
         return current_user
-    supabase.table("profiles").update(updates).eq("id", current_user["id"]).execute()
+    get_admin_db().table("profiles").update(updates).eq("id", current_user["id"]).execute()
     return {**current_user, **updates}
 
 
@@ -241,8 +241,7 @@ async def change_password(body: ChangePasswordInput, current_user: dict = Depend
 
 @router.post("/onboarding-complete")
 async def onboarding_complete(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
-    supabase.table("profiles").update({"onboarding_complete": True}).eq("id", current_user["id"]).execute()
+    get_admin_db().table("profiles").update({"onboarding_complete": True}).eq("id", current_user["id"]).execute()
     return {"ok": True}
 
 
@@ -258,9 +257,8 @@ async def delete_account(current_user: dict = Depends(get_current_user)):
 
 @router.post("/toggle-pro")
 async def toggle_pro(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
     new_val = not (current_user.get("is_pro") or False)
-    res = supabase.table("profiles").update({"is_pro": new_val}).eq("id", current_user["id"]).execute()
+    res = get_admin_db().table("profiles").update({"is_pro": new_val}).eq("id", current_user["id"]).execute()
     if not res.data:
         raise HTTPException(404, "Profile not found")
     return {"is_pro": new_val}
