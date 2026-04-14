@@ -80,6 +80,15 @@ def _ensure_profile(supabase, user_id: str, name: str = "", email: str = ""):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+def _get_profile(supabase, user_id: str) -> dict:
+    """Fetch profile row, returning a minimal dict if not found."""
+    try:
+        res = supabase.table("profiles").select("*").eq("id", user_id).execute()
+        return res.data[0] if res.data else {"id": user_id}
+    except Exception:
+        return {"id": user_id}
+
+
 @router.post("/register")
 async def register(body: RegisterInput):
     supabase = get_supabase()
@@ -93,14 +102,14 @@ async def register(body: RegisterInput):
         raise HTTPException(400, str(e))
 
     if res.user:
-        _ensure_profile(supabase, res.user.id, body.name, body.email)
+        try:
+            _ensure_profile(supabase, res.user.id, body.name, body.email)
+        except Exception:
+            pass  # profile creation failure doesn't block auth
 
-    # Supabase sends a confirmation email by default.
-    # If email confirmations are disabled in Supabase dashboard, session is returned immediately.
     if res.session:
-        profile = supabase.table("profiles").select("*").eq("id", res.user.id).single().execute()
-        return {"access_token": res.session.access_token, "user": profile.data}
-    # Email confirmation required — return pending flag matching mobile AuthContext
+        profile = _get_profile(supabase, res.user.id)
+        return {"access_token": res.session.access_token, "user": profile}
     return {"pending": True, "email": body.email, "name": body.name}
 
 
@@ -115,12 +124,15 @@ async def login(body: LoginInput):
     except Exception as e:
         raise HTTPException(401, "Invalid email or password")
 
-    _ensure_profile(supabase, res.user.id, email=body.email)
-    profile = supabase.table("profiles").select("*").eq("id", res.user.id).single().execute()
+    try:
+        _ensure_profile(supabase, res.user.id, email=body.email)
+    except Exception:
+        pass
+    profile = _get_profile(supabase, res.user.id)
     return {
         "access_token": res.session.access_token,
         "refresh_token": res.session.refresh_token,
-        "user": profile.data,
+        "user": profile,
     }
 
 
@@ -138,12 +150,15 @@ async def verify_otp(body: OtpVerifyInput):
         raise HTTPException(400, "Invalid or expired OTP")
 
     if res.user:
-        _ensure_profile(supabase, res.user.id, email=body.email)
-    profile = supabase.table("profiles").select("*").eq("id", res.user.id).single().execute()
+        try:
+            _ensure_profile(supabase, res.user.id, email=body.email)
+        except Exception:
+            pass
+    profile = _get_profile(supabase, res.user.id)
     return {
         "access_token": res.session.access_token,
         "refresh_token": res.session.refresh_token,
-        "user": profile.data,
+        "user": profile,
     }
 
 
