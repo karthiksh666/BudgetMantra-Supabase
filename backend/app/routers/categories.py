@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 
 router = APIRouter(tags=["categories"])
 
@@ -18,19 +18,23 @@ class CategoryCreate(BaseModel):
 
 @router.get("/categories")
 async def list_categories(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("budget_categories").select("*").eq("user_id", current_user["id"]).order("name").execute()
-    return res.data or []
+    # Mobile filters by c.type === 'expense'; budget_categories are all expense categories
+    cats = res.data or []
+    for c in cats:
+        c.setdefault("type", "expense")
+    return cats
 
 
 @router.post("/categories", status_code=201)
 async def create_category(body: CategoryCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": current_user["id"],
         **body.model_dump(),
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     res = supabase.table("budget_categories").insert(doc).execute()
     return res.data[0]
@@ -38,7 +42,7 @@ async def create_category(body: CategoryCreate, current_user: dict = Depends(get
 
 @router.delete("/categories/{category_id}")
 async def delete_category(category_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("budget_categories").delete().eq("id", category_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
 
@@ -47,7 +51,7 @@ async def delete_category(category_id: str, current_user: dict = Depends(get_cur
 async def budget_summary(month: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     """Returns spending per category vs budget limit for the given month."""
     from datetime import date
-    supabase = get_supabase()
+    supabase = get_admin_db()
     user_id = current_user["id"]
     if not month:
         month = date.today().strftime("%Y-%m")
@@ -94,7 +98,7 @@ async def budget_alerts(current_user: dict = Depends(get_current_user)):
 
 @router.get("/savings-goals-summary")
 async def savings_goals_summary_toplevel(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     goals = supabase.table("savings_goals").select("*").eq("user_id", current_user["id"]).execute()
     goal_list = goals.data or []
     total_target    = sum(g.get("target_amount", 0) for g in goal_list)
@@ -139,7 +143,7 @@ async def get_net_worth(current_user: dict = Depends(get_current_user)):
     today = _date.today()
     month_start = f"{today.year}-{today.month:02d}-01"
     month_end   = today.isoformat()
-    supabase = get_supabase()
+    supabase = get_admin_db()
 
     # Assets
     invs  = supabase.table("investments").select("current_value").eq("user_id", uid).execute().data or []
@@ -215,7 +219,7 @@ async def get_spending_breakdown(
         start = f"{today.year}-01-01"
     else:  # month
         start = f"{today.year}-{today.month:02d}-01"
-    supabase = get_supabase()
+    supabase = get_admin_db()
     rows = supabase.table("transactions").select("amount,category").eq("user_id", uid).eq("type", "expense").gte("date", start).execute().data or []
     breakdown: dict = {}
     for r in rows:

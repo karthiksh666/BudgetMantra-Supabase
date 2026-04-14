@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 
 router = APIRouter(prefix="/income-entries", tags=["income-entries"])
 
@@ -19,7 +19,7 @@ class IncomeEntryInput(BaseModel):
 
 @router.get("")
 async def list_income_entries(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("income_entries").select("*").eq("user_id", current_user["id"]).order("date", desc=True).execute()
     return res.data or []
 
@@ -27,7 +27,7 @@ async def list_income_entries(current_user: dict = Depends(get_current_user)):
 @router.get("/month-summary")
 async def month_summary(current_user: dict = Depends(get_current_user)):
     from datetime import datetime
-    supabase = get_supabase()
+    supabase = get_admin_db()
     now = datetime.now()
     start = f"{now.year}-{now.month:02d}-01"
     res = supabase.table("income_entries").select("amount,source_type").eq("user_id", current_user["id"]).gte("date", start).execute()
@@ -41,7 +41,7 @@ async def month_summary(current_user: dict = Depends(get_current_user)):
 
 @router.post("")
 async def create_income_entry(body: IncomeEntryInput, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     doc = {
         "user_id": current_user["id"],
         "amount": body.amount,
@@ -57,7 +57,7 @@ async def create_income_entry(body: IncomeEntryInput, current_user: dict = Depen
 
 @router.put("/{entry_id}")
 async def update_income_entry(entry_id: str, body: IncomeEntryInput, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     updates = body.model_dump(exclude_none=True)
     res = supabase.table("income_entries").update(updates).eq("id", entry_id).eq("user_id", current_user["id"]).execute()
     return res.data[0] if res.data else {}
@@ -65,6 +65,6 @@ async def update_income_entry(entry_id: str, body: IncomeEntryInput, current_use
 
 @router.delete("/{entry_id}")
 async def delete_income_entry(entry_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("income_entries").delete().eq("id", entry_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}

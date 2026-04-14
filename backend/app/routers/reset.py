@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 
 router = APIRouter(prefix="/reset", tags=["reset"])
 
@@ -24,6 +24,6 @@ async def reset_resource(resource: str, current_user: dict = Depends(get_current
     if not table:
         from fastapi import HTTPException
         raise HTTPException(404, f"Unknown resource: {resource}")
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table(table).delete().eq("user_id", current_user["id"]).execute()
     return {"ok": True, "cleared": resource}

@@ -35,7 +35,8 @@ BudgetMantra-Supabase/       ← Supabase backend (the primary backend going for
         piggy_bank.py        ← Piggy bank / savings jars
         market.py            ← Stock/MF price lookups
         sms.py               ← SMS transaction parser
-        financial_score.py   ← Financial health score
+        financial_score.py   ← Financial health score + /history trend (last 6 months)
+        fire_goal.py         ← FIRE goal (GET/POST/DELETE /fire-goal)
         income_entries.py    ← Income entries
         recurring_expenses.py← Recurring expenses
         credit_cards.py      ← Credit cards + expenses
@@ -131,6 +132,8 @@ async def create_xxx(body: XxxCreate, current_user: dict = Depends(get_current_u
 - **Spending breakdown**: served at `/api/spending-breakdown` from `categories.py`
 - **Chanakya suggestions**: served at `/api/chanakya/suggestions` from `categories.py`
 - **Chatbot**: prefix is `/chatbot` — full route is `/api/chatbot`
+- **Financial score history**: `GET /api/financial-score/history?months=6`
+- **FIRE goal**: `GET|POST|DELETE /api/fire-goal` (one per user, upsert on POST)
 - **Notifications**: no router prefix — routes are `/api/notifications/prefs`, etc.
 
 ### Adding a Chat Action

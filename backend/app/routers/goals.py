@@ -4,7 +4,7 @@ from typing import Optional
 from datetime import datetime, date, timezone
 import uuid
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 
 router = APIRouter(prefix="/savings-goals", tags=["goals"])
 
@@ -37,14 +37,14 @@ class ContributionCreate(BaseModel):
 
 @router.get("")
 async def list_goals(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("savings_goals").select("*").eq("user_id", current_user["id"]).order("created_at").execute()
     return res.data or []
 
 
 @router.post("", status_code=201)
 async def create_goal(body: GoalCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": current_user["id"],
@@ -57,7 +57,7 @@ async def create_goal(body: GoalCreate, current_user: dict = Depends(get_current
 
 @router.put("/{goal_id}")
 async def update_goal(goal_id: str, body: GoalUpdate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     updates = body.model_dump(exclude_none=True)
     res = supabase.table("savings_goals").update(updates).eq("id", goal_id).eq("user_id", current_user["id"]).execute()
     if not res.data:
@@ -67,14 +67,14 @@ async def update_goal(goal_id: str, body: GoalUpdate, current_user: dict = Depen
 
 @router.delete("/{goal_id}")
 async def delete_goal(goal_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("savings_goals").delete().eq("id", goal_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
 
 
 @router.post("/{goal_id}/contribute", status_code=201)
 async def contribute(goal_id: str, body: ContributionCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     goal = supabase.table("savings_goals").select("*").eq("id", goal_id).eq("user_id", current_user["id"]).single().execute()
     if not goal.data:
         raise HTTPException(404, "Goal not found")
@@ -100,7 +100,7 @@ async def contribute(goal_id: str, body: ContributionCreate, current_user: dict 
 
 @router.get("/summary")
 async def savings_goals_summary(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     goals = supabase.table("savings_goals").select("*").eq("user_id", current_user["id"]).execute()
     goal_list = goals.data or []
 

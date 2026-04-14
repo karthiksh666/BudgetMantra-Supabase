@@ -9,9 +9,11 @@ Architecture:
   - Hosting  : Railway (same as before)
 """
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
+from app.scheduler import create_scheduler
 from app.routers import (
     auth, transactions, emis, goals, investments, chat,
     hand_loans, subscriptions, categories, gold_silver,
@@ -20,7 +22,7 @@ from app.routers import (
     nominees, piggy_bank, feedback, admin,
     market, sms, financial_score, reset,
     income_entries, recurring_expenses, credit_cards, trips,
-    notifications, circle,
+    notifications, circle, fire_goal,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -28,10 +30,22 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    scheduler = create_scheduler()
+    scheduler.start()
+    logger.info("Scheduler started with %d jobs", len(scheduler.get_jobs()))
+    yield
+    scheduler.shutdown(wait=False)
+    logger.info("Scheduler stopped")
+
+
 app = FastAPI(
     title="Budget Mantra API",
     description="Personal finance API powered by Supabase + Claude AI",
     version="2.0.0",
+    lifespan=lifespan,
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
@@ -87,6 +101,7 @@ app.include_router(admin.router,            prefix=PREFIX)
 app.include_router(reset.router,            prefix=PREFIX)
 app.include_router(notifications.router,    prefix=PREFIX)
 app.include_router(circle.router,           prefix=PREFIX)
+app.include_router(fire_goal.router,        prefix=PREFIX)
 
 
 @app.get("/")

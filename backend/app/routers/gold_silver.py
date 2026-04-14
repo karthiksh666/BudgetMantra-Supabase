@@ -3,10 +3,10 @@ import httpx
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 
 router = APIRouter(tags=["gold-silver"])
 
@@ -53,23 +53,23 @@ async def gold_price():
 
 @router.get("/gold")
 async def list_gold(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("gold_items").select("*").eq("user_id", current_user["id"]).order("created_at", desc=True).execute()
     return res.data or []
 
 
 @router.post("/gold", status_code=201)
 async def add_gold(body: GoldItemCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     doc = {"id": str(uuid.uuid4()), "user_id": current_user["id"], **body.model_dump(),
-           "created_at": datetime.utcnow().isoformat()}
+           "created_at": datetime.now(timezone.utc).isoformat()}
     res = supabase.table("gold_items").insert(doc).execute()
     return res.data[0]
 
 
 @router.delete("/gold/{item_id}")
 async def delete_gold(item_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("gold_items").delete().eq("id", item_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
 
@@ -83,23 +83,23 @@ async def silver_price():
 
 @router.get("/silver")
 async def list_silver(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("silver_items").select("*").eq("user_id", current_user["id"]).order("created_at", desc=True).execute()
     return res.data or []
 
 
 @router.post("/silver", status_code=201)
 async def add_silver(body: SilverItemCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     doc = {"id": str(uuid.uuid4()), "user_id": current_user["id"], **body.model_dump(),
-           "created_at": datetime.utcnow().isoformat()}
+           "created_at": datetime.now(timezone.utc).isoformat()}
     res = supabase.table("silver_items").insert(doc).execute()
     return res.data[0]
 
 
 @router.delete("/silver/{item_id}")
 async def delete_silver(item_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("silver_items").delete().eq("id", item_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
 
@@ -130,7 +130,7 @@ async def buy_goal_metal_prices(_: dict = Depends(get_current_user)):
 
 @router.get("/gold/summary")
 async def gold_summary(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     items = supabase.table("gold_items").select("*").eq("user_id", current_user["id"]).execute().data or []
     total_weight   = sum(i.get("weight_grams") or 0 for i in items)
     total_invested = sum((i.get("weight_grams") or 0) * (i.get("buy_price_per_gram") or 0) for i in items)
@@ -139,7 +139,7 @@ async def gold_summary(current_user: dict = Depends(get_current_user)):
 
 @router.get("/silver/summary")
 async def silver_summary(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     items = supabase.table("silver_items").select("*").eq("user_id", current_user["id"]).execute().data or []
     total_weight   = sum(i.get("weight_grams") or 0 for i in items)
     total_invested = sum((i.get("weight_grams") or 0) * (i.get("buy_price_per_gram") or 0) for i in items)
@@ -148,7 +148,7 @@ async def silver_summary(current_user: dict = Depends(get_current_user)):
 
 @router.put("/gold/{item_id}")
 async def update_gold(item_id: str, body: GoldItemCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("gold_items").update(body.model_dump()).eq("id", item_id).eq("user_id", current_user["id"]).execute()
     if not res.data:
         raise HTTPException(404, "Item not found")
@@ -157,7 +157,7 @@ async def update_gold(item_id: str, body: GoldItemCreate, current_user: dict = D
 
 @router.put("/silver/{item_id}")
 async def update_silver(item_id: str, body: SilverItemCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("silver_items").update(body.model_dump()).eq("id", item_id).eq("user_id", current_user["id"]).execute()
     if not res.data:
         raise HTTPException(404, "Item not found")

@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import uuid
 import httpx
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 from app.config import get_settings
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -55,21 +55,21 @@ class GeneratePreferences(BaseModel):
 
 @router.get("")
 async def list_trips(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("trips").select("*").eq("user_id", current_user["id"]).order("created_at", desc=True).execute()
     return res.data or []
 
 
 @router.post("", status_code=201)
 async def create_trip(body: TripCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": current_user["id"],
         **body.model_dump(),
         "total_spent": 0,
         "itinerary": {},
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     res = supabase.table("trips").insert(doc).execute()
     return res.data[0]
@@ -77,7 +77,7 @@ async def create_trip(body: TripCreate, current_user: dict = Depends(get_current
 
 @router.get("/{trip_id}")
 async def get_trip(trip_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     trip = supabase.table("trips").select("*").eq("id", trip_id).eq("user_id", current_user["id"]).single().execute()
     if not trip.data:
         raise HTTPException(404, "Trip not found")
@@ -87,7 +87,7 @@ async def get_trip(trip_id: str, current_user: dict = Depends(get_current_user))
 
 @router.patch("/{trip_id}")
 async def update_trip(trip_id: str, body: TripUpdate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     updates = body.model_dump(exclude_none=True)
     res = supabase.table("trips").update(updates).eq("id", trip_id).eq("user_id", current_user["id"]).execute()
     if not res.data:
@@ -97,7 +97,7 @@ async def update_trip(trip_id: str, body: TripUpdate, current_user: dict = Depen
 
 @router.delete("/{trip_id}")
 async def delete_trip(trip_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("trip_expenses").delete().eq("trip_id", trip_id).execute()
     supabase.table("trips").delete().eq("id", trip_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
@@ -107,7 +107,7 @@ async def delete_trip(trip_id: str, current_user: dict = Depends(get_current_use
 
 @router.post("/{trip_id}/expenses", status_code=201)
 async def add_trip_expense(trip_id: str, body: TripExpenseCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     trip = supabase.table("trips").select("id, total_spent").eq("id", trip_id).eq("user_id", current_user["id"]).single().execute()
     if not trip.data:
         raise HTTPException(404, "Trip not found")
@@ -118,7 +118,7 @@ async def add_trip_expense(trip_id: str, body: TripExpenseCreate, current_user: 
         "user_id": current_user["id"],
         "date": body.date or date.today().isoformat(),
         **body.model_dump(exclude={"date"}),
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     supabase.table("trip_expenses").insert(expense).execute()
 
@@ -130,7 +130,7 @@ async def add_trip_expense(trip_id: str, body: TripExpenseCreate, current_user: 
 
 @router.delete("/{trip_id}/expenses/{expense_id}")
 async def delete_trip_expense(trip_id: str, expense_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     exp = supabase.table("trip_expenses").select("amount").eq("id", expense_id).eq("trip_id", trip_id).single().execute()
     if not exp.data:
         raise HTTPException(404, "Expense not found")
@@ -149,7 +149,7 @@ async def delete_trip_expense(trip_id: str, expense_id: str, current_user: dict 
 
 @router.get("/{trip_id}/balances")
 async def get_trip_balances(trip_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     trip = supabase.table("trips").select("*").eq("id", trip_id).eq("user_id", current_user["id"]).single().execute()
     if not trip.data:
         raise HTTPException(404, "Trip not found")
@@ -196,7 +196,7 @@ async def get_trip_balances(trip_id: str, current_user: dict = Depends(get_curre
 
 @router.post("/{trip_id}/generate")
 async def generate_itinerary(trip_id: str, body: GeneratePreferences, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     trip = supabase.table("trips").select("*").eq("id", trip_id).eq("user_id", current_user["id"]).single().execute()
     if not trip.data:
         raise HTTPException(404, "Trip not found")

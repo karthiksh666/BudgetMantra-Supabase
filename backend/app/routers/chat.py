@@ -7,14 +7,14 @@ import json
 import re
 import uuid
 import math
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import anthropic
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 from app.config import get_settings
 
 router = APIRouter(prefix="/chatbot", tags=["chat"])
@@ -29,11 +29,11 @@ class ChatRequest(BaseModel):
 
 
 def _today_ist() -> str:
-    return datetime.utcnow().strftime("%Y-%m-%d")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 def _now_iso() -> str:
-    return datetime.utcnow().isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _strip_json_block(text: str) -> str:
@@ -72,7 +72,7 @@ async def get_history(
     before: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
 ):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     q = (
         supabase.table("chat_messages")
         .select("*")
@@ -100,7 +100,7 @@ async def get_history(
 async def search_history(q: str = "", current_user: dict = Depends(get_current_user)):
     if not q.strip():
         return []
-    supabase = get_supabase()
+    supabase = get_admin_db()
     # Supabase ilike for case-insensitive search
     res = (
         supabase.table("chat_messages")
@@ -116,14 +116,14 @@ async def search_history(q: str = "", current_user: dict = Depends(get_current_u
 
 @router.delete("/history")
 async def clear_history(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("chat_messages").delete().eq("user_id", current_user["id"]).execute()
     return {"ok": True}
 
 
 @router.get("/pinned")
 async def get_pinned(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = (
         supabase.table("chat_messages")
         .select("*")
@@ -138,8 +138,8 @@ async def get_pinned(current_user: dict = Depends(get_current_user)):
 @router.get("/usage")
 async def get_chat_usage(current_user: dict = Depends(get_current_user)):
     from datetime import datetime as _dt
-    today = _dt.utcnow().strftime("%Y-%m-%d")
-    supabase = get_supabase()
+    today = _dt.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d")
+    supabase = get_admin_db()
     # Count messages sent by user today
     res = (
         supabase.table("chat_messages")
@@ -157,14 +157,14 @@ async def get_chat_usage(current_user: dict = Depends(get_current_user)):
 
 @router.delete("/message/{msg_id}")
 async def delete_message(msg_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("chat_messages").delete().eq("id", msg_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
 
 
 @router.put("/message/{msg_id}/pin")
 async def pin_message(msg_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     msg = supabase.table("chat_messages").select("pinned").eq("id", msg_id).eq("user_id", current_user["id"]).single().execute()
     if not msg.data:
         raise HTTPException(404, "Message not found")
@@ -181,7 +181,7 @@ async def upload_attachment(current_user: dict = Depends(get_current_user)):
 
 async def _chat_core(body: ChatRequest, current_user: dict) -> dict:
     """Core chat logic — called by both /chatbot and /chatbot/stream."""
-    supabase = get_supabase()
+    supabase = get_admin_db()
     user_id = current_user["id"]
     user_name = current_user.get("name") or "there"
     first_name = user_name.split()[0] if user_name.strip() else "there"
@@ -201,6 +201,27 @@ async def _chat_core(body: ChatRequest, current_user: dict) -> dict:
     trips        = _q("trips")
     recurring    = _q("recurring_expenses") if _table_exists("recurring_expenses") else []
     credit_cards = _q("credit_cards") if _table_exists("credit_cards") else []
+
+    # ── Notification prefs — controls what Chanakya proactively mentions ──────
+    try:
+        prefs_res = supabase.table("notification_prefs").select("*").eq("user_id", user_id).single().execute()
+        notif_prefs = prefs_res.data or {}
+    except Exception:
+        notif_prefs = {}
+    pref_monthly   = notif_prefs.get("monthly_summary", True)
+    pref_emi       = notif_prefs.get("emi_reminders",   True)
+    pref_goal      = notif_prefs.get("goal_alerts",     True)
+    pref_budget    = notif_prefs.get("budget_alerts",   True)
+    pref_weekly    = notif_prefs.get("weekly_digest",   True)
+
+    # Unread alerts — Chanakya is aware of active alerts
+    try:
+        alerts_res = supabase.table("notifications").select("title,message,type").eq("user_id", user_id).eq("read", False).limit(5).execute()
+        unread_alerts = alerts_res.data or []
+    except Exception:
+        unread_alerts = []
+
+    is_month_start = today.endswith("-01")
 
     # Transactions this month
     month_start = today[:7] + "-01"
@@ -252,7 +273,7 @@ async def _chat_core(body: ChatRequest, current_user: dict) -> dict:
     ]) or "None"
 
     financial_context = f"""
-=== {user_name}'s Financial Snapshot — {datetime.utcnow().strftime('%B %Y')} ===
+=== {user_name}'s Financial Snapshot — {datetime.now(timezone.utc).strftime('%B %Y')} ===
 
 INCOME & CASH FLOW:
   • Monthly Income:    ₹{monthly_income:,.0f}
@@ -280,6 +301,24 @@ THIS MONTH'S TRANSACTIONS (READ-ONLY — do NOT re-log these):
     emi_ctx   = ", ".join(f"{e['name']} (id:{e['id']}, ₹{float(e['emi_amount']):,.0f}/mo)" for e in emis[:8]) or "None"
     goals_ctx = "\n".join(f"- {g['name']} (id:{g['id']}, saved: ₹{float(g.get('current_amount',0)):.0f} of ₹{float(g['target_amount']):.0f})" for g in goals) or "None"
     trips_ctx = "\n".join(f"- {t.get('name','Trip')} (id:{t['id']}, dest:{t.get('destination','')})" for t in trips) or "None"
+
+    # Build notification context strings now that prefs are loaded
+    alerts_ctx = "\n".join(f"  • [{a.get('type','')}] {a.get('title','')}: {a.get('message','')}" for a in unread_alerts) or "  None"
+
+    proactive_rules = []
+    if not pref_monthly:
+        proactive_rules.append("- Do NOT proactively give monthly summaries or digests — user has opted out")
+    elif is_month_start:
+        proactive_rules.append("- Today is the 1st of the month. If this is the user's first message today, open with a brief monthly summary using their real numbers")
+    if not pref_emi:
+        proactive_rules.append("- Do NOT proactively mention EMI reminders — user has opted out")
+    if not pref_goal:
+        proactive_rules.append("- Do NOT proactively mention goal progress alerts — user has opted out")
+    if not pref_budget:
+        proactive_rules.append("- Do NOT proactively mention budget overspend alerts — user has opted out")
+    if not pref_weekly:
+        proactive_rules.append("- Do NOT proactively give weekly spending digests — user has opted out")
+    proactive_block = "\n".join(proactive_rules) if proactive_rules else "- All alert types enabled — mention relevant alerts naturally"
 
     system_message = f"""You are Chanakya — a calm, warm, and knowledgeable friend who genuinely cares about {user_name}'s financial wellbeing.
 
@@ -340,6 +379,12 @@ Active EMIs (use id for emi_payment): {emi_ctx}
 Active savings goals (use id for contribute_goal):
 {goals_ctx}
 Active trips: {trips_ctx}
+
+UNREAD ALERTS (mention naturally if relevant, don't read out the list verbatim):
+{alerts_ctx}
+
+PROACTIVE NOTIFICATION RULES (respect user's opt-in/out preferences):
+{proactive_block}
 
 {financial_context}"""
 
@@ -452,7 +497,7 @@ async def chat_stream(body: ChatRequest, current_user: dict = Depends(get_curren
 def _table_exists(name: str) -> bool:
     """Gracefully check if a table is accessible."""
     try:
-        get_supabase().table(name).select("id").limit(1).execute()
+        get_admin_db().table(name).select("id").limit(1).execute()
         return True
     except Exception:
         return False

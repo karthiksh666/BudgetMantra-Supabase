@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from dateutil.relativedelta import relativedelta
 import uuid
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
@@ -35,14 +35,14 @@ def _next_due(billing_cycle: str, from_date: date) -> date:
 
 @router.get("")
 async def list_subscriptions(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("subscriptions").select("*").eq("user_id", current_user["id"]).order("created_at").execute()
     return res.data or []
 
 
 @router.post("", status_code=201)
 async def create_subscription(body: SubscriptionCreate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     next_due = body.next_due or _next_due(body.billing_cycle, date.today()).isoformat()
     doc = {
         "id": str(uuid.uuid4()),
@@ -50,7 +50,7 @@ async def create_subscription(body: SubscriptionCreate, current_user: dict = Dep
         **body.model_dump(exclude={"next_due"}),
         "next_due": next_due,
         "is_active": True,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     res = supabase.table("subscriptions").insert(doc).execute()
     return res.data[0]
@@ -58,7 +58,7 @@ async def create_subscription(body: SubscriptionCreate, current_user: dict = Dep
 
 @router.put("/{sub_id}")
 async def update_subscription(sub_id: str, body: SubscriptionUpdate, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     updates = body.model_dump(exclude_none=True)
     res = supabase.table("subscriptions").update(updates).eq("id", sub_id).eq("user_id", current_user["id"]).execute()
     if not res.data:
@@ -68,7 +68,7 @@ async def update_subscription(sub_id: str, body: SubscriptionUpdate, current_use
 
 @router.post("/{sub_id}/renew")
 async def renew(sub_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     sub = supabase.table("subscriptions").select("*").eq("id", sub_id).eq("user_id", current_user["id"]).single().execute()
     if not sub.data:
         raise HTTPException(404, "Subscription not found")
@@ -79,6 +79,6 @@ async def renew(sub_id: str, current_user: dict = Depends(get_current_user)):
 
 @router.delete("/{sub_id}")
 async def delete_subscription(sub_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("subscriptions").delete().eq("id", sub_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 
 router = APIRouter(prefix="/credit-cards", tags=["credit-cards"])
 
@@ -27,14 +27,14 @@ class CardExpenseInput(BaseModel):
 
 @router.get("")
 async def list_cards(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("credit_cards").select("*").eq("user_id", current_user["id"]).order("created_at", desc=True).execute()
     return res.data or []
 
 
 @router.get("/summary")
 async def cards_summary(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     cards = supabase.table("credit_cards").select("*").eq("user_id", current_user["id"]).execute().data or []
     total_limit   = sum(c.get("credit_limit", 0) for c in cards)
     total_balance = sum(c.get("current_balance", 0) for c in cards)
@@ -49,7 +49,7 @@ async def cards_summary(current_user: dict = Depends(get_current_user)):
 
 @router.post("")
 async def create_card(body: CreditCardInput, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     doc = {"user_id": current_user["id"], **body.model_dump()}
     res = supabase.table("credit_cards").insert(doc).execute()
     return res.data[0]
@@ -57,7 +57,7 @@ async def create_card(body: CreditCardInput, current_user: dict = Depends(get_cu
 
 @router.delete("/{card_id}")
 async def delete_card(card_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("credit_card_expenses").delete().eq("card_id", card_id).execute()
     supabase.table("credit_cards").delete().eq("id", card_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}
@@ -65,14 +65,14 @@ async def delete_card(card_id: str, current_user: dict = Depends(get_current_use
 
 @router.get("/{card_id}/expenses")
 async def card_expenses(card_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("credit_card_expenses").select("*").eq("card_id", card_id).eq("user_id", current_user["id"]).order("date", desc=True).execute()
     return res.data or []
 
 
 @router.post("/{card_id}/expenses")
 async def add_card_expense(card_id: str, body: CardExpenseInput, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     doc = {
         "card_id": card_id,
         "user_id": current_user["id"],

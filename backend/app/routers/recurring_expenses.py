@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 
 router = APIRouter(prefix="/recurring-expenses", tags=["recurring-expenses"])
 
@@ -20,14 +20,14 @@ class RecurringExpenseInput(BaseModel):
 
 @router.get("")
 async def list_recurring(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("recurring_expenses").select("*").eq("user_id", current_user["id"]).order("created_at", desc=True).execute()
     return res.data or []
 
 
 @router.post("")
 async def create_recurring(body: RecurringExpenseInput, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     doc = {
         "user_id": current_user["id"],
         **body.model_dump(),
@@ -38,13 +38,13 @@ async def create_recurring(body: RecurringExpenseInput, current_user: dict = Dep
 
 @router.put("/{item_id}")
 async def update_recurring(item_id: str, body: RecurringExpenseInput, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     res = supabase.table("recurring_expenses").update(body.model_dump()).eq("id", item_id).eq("user_id", current_user["id"]).execute()
     return res.data[0] if res.data else {}
 
 
 @router.delete("/{item_id}")
 async def delete_recurring(item_id: str, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     supabase.table("recurring_expenses").delete().eq("id", item_id).eq("user_id", current_user["id"]).execute()
     return {"ok": True}

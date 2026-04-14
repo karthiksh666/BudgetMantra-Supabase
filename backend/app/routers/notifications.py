@@ -4,7 +4,7 @@ from typing import Optional
 from datetime import datetime
 import uuid
 from app.auth import get_current_user
-from app.database import get_supabase
+from app.database import get_admin_db
 
 router = APIRouter(tags=["notifications"])
 
@@ -24,7 +24,7 @@ class NotificationPrefs(BaseModel):
 
 @router.get("/notifications/prefs")
 async def get_notification_prefs(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     try:
         res = supabase.table("notification_prefs").select("*").eq("user_id", current_user["id"]).single().execute()
         return res.data or {}
@@ -34,7 +34,7 @@ async def get_notification_prefs(current_user: dict = Depends(get_current_user))
 
 @router.put("/notifications/prefs")
 async def update_notification_prefs(body: NotificationPrefs, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     updates = body.model_dump(exclude_none=True)
     try:
         existing = supabase.table("notification_prefs").select("id").eq("user_id", current_user["id"]).execute()
@@ -49,7 +49,7 @@ async def update_notification_prefs(body: NotificationPrefs, current_user: dict 
 
 @router.put("/notifications/push-token")
 async def update_push_token(body: PushTokenBody, current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     try:
         supabase.table("profiles").update({"push_token": body.token}).eq("id", current_user["id"]).execute()
     except Exception:
@@ -59,9 +59,23 @@ async def update_push_token(body: PushTokenBody, current_user: dict = Depends(ge
 
 @router.get("/notifications/unread")
 async def get_unread_notifications(current_user: dict = Depends(get_current_user)):
-    supabase = get_supabase()
+    supabase = get_admin_db()
     try:
         res = supabase.table("notifications").select("*").eq("user_id", current_user["id"]).eq("read", False).order("created_at", desc=True).limit(20).execute()
         return res.data or []
     except Exception:
         return []
+
+
+@router.patch("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, current_user: dict = Depends(get_current_user)):
+    supabase = get_admin_db()
+    supabase.table("notifications").update({"read": True}).eq("id", notification_id).eq("user_id", current_user["id"]).execute()
+    return {"ok": True}
+
+
+@router.post("/notifications/read-all")
+async def mark_all_notifications_read(current_user: dict = Depends(get_current_user)):
+    supabase = get_admin_db()
+    supabase.table("notifications").update({"read": True}).eq("user_id", current_user["id"]).eq("read", False).execute()
+    return {"ok": True}
