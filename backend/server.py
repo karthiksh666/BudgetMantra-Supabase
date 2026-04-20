@@ -485,7 +485,7 @@ class _NoOpCursor:
         yield  # make it a generator
 
 # Collections that don't exist in Supabase — silent no-ops
-_NOOP_TABLES = {"ai_usage", "net_worth_snapshots", "trip_savings"}
+_NOOP_TABLES = {"ai_usage", "net_worth_snapshots", "trip_savings", "market_signals"}
 
 # Collections that map to different Supabase table names
 _TABLE_RENAMES = {
@@ -1733,7 +1733,7 @@ async def reset_password(request: Request, input: ResetPasswordRequest):
     return {"message": "Password reset successfully"}
 
 
-@api_router.post("/auth/change-password")
+@api_router.api_route("/auth/change-password", methods=["POST", "PUT"])
 async def change_password(body: dict, current_user: dict = Depends(get_current_user)):
     current_pw = body.get("current_password", "")
     new_pw = body.get("new_password", "")
@@ -8922,8 +8922,14 @@ async def startup_event():
     scheduler.add_job(calendar_event_notifications, CronTrigger(hour=8, minute=0), id="cal_notify", replace_existing=True)
     # Refresh stock & MF prices at 16:00 IST Mon–Fri (30 min after NSE closes at 15:30)
     scheduler.add_job(auto_refresh_all_investment_prices, CronTrigger(hour=16, minute=0, day_of_week="mon-fri"), id="inv_price_refresh", replace_existing=True)
+    # Market signals refresh at 07:50 IST (before morning pulse)
+    scheduler.add_job(_fetch_market_signals, CronTrigger(hour=7, minute=50), id="market_signals", replace_existing=True)
+    # Morning Pulse notification at 08:00 IST
+    scheduler.add_job(_send_morning_pulse, CronTrigger(hour=8, minute=0), id="morning_pulse", replace_existing=True)
+    # Evening Action nudge at 20:30 IST
+    scheduler.add_job(_send_evening_action, CronTrigger(hour=20, minute=30), id="evening_action", replace_existing=True)
     scheduler.start()
-    logger.info("[Scheduler] Auto-debit @ 09:00 IST + WA notifications @ 08:30 IST + Recurring @ 00:05 IST + Calendar reminders @ 08:00 IST + Investment price refresh @ 16:00 IST Mon-Fri")
+    logger.info("[Scheduler] Auto-debit @ 09:00 IST + WA notifications @ 08:30 IST + Recurring @ 00:05 IST + Calendar reminders @ 08:00 IST + Investment price refresh @ 16:00 IST Mon-Fri + Market signals @ 07:50 IST + Morning pulse @ 08:00 IST + Evening action @ 20:30 IST")
     # Also run immediately on startup to catch any missed debits for today
     try:
         await auto_debit_emi_payments()
@@ -9172,6 +9178,173 @@ async def investment_suggestions(current_user: dict = Depends(get_current_user))
     return tips[:5]
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Market Scheduler Functions (signals, morning pulse, evening action)
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _fetch_market_signals() -> list[dict]:
+    """Fetch real market data and generate signals. Called once/day by scheduler."""
+    signals = []
+    browser_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "*/*",
+    }
+
+    try:
+        async with aiohttp.ClientSession(headers=browser_headers) as session:
+            # Nifty 50 from NSE
+            try:
+                await session.get("https://www.nseindia.com", timeout=aiohttp.ClientTimeout(total=6))
+                async with session.get(
+                    "https://www.nseindia.com/api/allIndices",
+                    timeout=aiohttp.ClientTimeout(total=8),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        nifty = next((i for i in (data.get("data") or []) if i.get("index") == "NIFTY 50"), None)
+                        if nifty:
+                            change = nifty.get("percentChange", 0)
+                            value = nifty.get("last", 0)
+                            direction = "up" if change >= 0 else "down"
+                            signals.append({
+                                "emoji": "📈" if change >= 0 else "📉",
+                                "signal": f"Nifty 50 at {value:,.0f} — {direction} {abs(change):.1f}% today",
+                                "category": "market",
+                                "data": {"index": "NIFTY 50", "value": value, "change_pct": change},
+                            })
+            except Exception as e:
+                logger.warning(f"[MarketSignals] Nifty fetch failed: {e}")
+
+            # Gold price from metals API (free tier)
+            try:
+                async with session.get(
+                    "https://www.goldapi.io/api/XAU/INR",
+                    headers={"x-access-token": "goldapi-demo", **browser_headers},
+                    timeout=aiohttp.ClientTimeout(total=8),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        price_per_gram = (data.get("price_gram_24k") or 0)
+                        change = data.get("ch", 0)
+                        if price_per_gram > 0:
+                            signals.append({
+                                "emoji": "🥇",
+                                "signal": f"Gold at ₹{price_per_gram:,.0f}/gram — {'up' if change >= 0 else 'down'} ₹{abs(change):,.0f} today",
+                                "category": "commodity",
+                                "data": {"commodity": "gold", "price_inr": price_per_gram, "change": change},
+                            })
+            except Exception as e:
+                logger.warning(f"[MarketSignals] Gold fetch failed: {e}")
+
+    except Exception as e:
+        logger.error(f"[MarketSignals] Session error: {e}")
+
+    # Static signals that are always relevant (rotated based on day)
+    import hashlib
+    day_hash = int(hashlib.md5(datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%Y-%m-%d").encode()).hexdigest(), 16)
+    rotating_signals = [
+        {"emoji": "⚡", "signal": "Tech sector layoffs continue globally — is your emergency fund ready?", "category": "employment"},
+        {"emoji": "🏦", "signal": "RBI's next policy meeting may bring a rate cut — home loans could get cheaper", "category": "rbi"},
+        {"emoji": "📉", "signal": "Inflation at ~5% — your idle savings are losing value every month", "category": "inflation"},
+        {"emoji": "🛡️", "signal": "Health insurance premiums rising 10-15% — lock in current rates", "category": "insurance"},
+        {"emoji": "🧾", "signal": "Tax filing deadline approaching — old vs new regime, have you decided?", "category": "tax"},
+        {"emoji": "💳", "signal": "Credit card debt at record highs in India — check your outstanding balance", "category": "debt"},
+        {"emoji": "📊", "signal": "Mutual fund SIP inflows hit all-time high — are you invested?", "category": "investing"},
+    ]
+    # Pick 2 rotating signals per day
+    idx1 = day_hash % len(rotating_signals)
+    idx2 = (day_hash + 3) % len(rotating_signals)
+    signals.append(rotating_signals[idx1])
+    if idx1 != idx2:
+        signals.append(rotating_signals[idx2])
+
+    # Update in-memory cache (no DB table in Supabase for market_signals)
+    today = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%Y-%m-%d")
+    _market_signals_cache["date"] = today
+    _market_signals_cache["signals"] = signals
+
+    logger.info(f"[MarketSignals] Refreshed {len(signals)} signals for {today}")
+    return signals
+
+
+async def _send_morning_pulse():
+    """8:00 AM IST — awareness notification. Quick market pulse."""
+    today = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%Y-%m-%d")
+
+    # Ensure signals are fresh (use in-memory cache)
+    if _market_signals_cache.get("date") != today or not _market_signals_cache.get("signals"):
+        await _fetch_market_signals()
+
+    signals = _market_signals_cache.get("signals", [])
+    if not signals:
+        return
+
+    # Build one-liner from market signals
+    market_lines = [s["signal"] for s in signals if s.get("category") in ("market", "commodity")]
+    headline = market_lines[0] if market_lines else signals[0]["signal"]
+    body = f"🧘 {headline}"
+
+    # Send to all users with push tokens
+    users = await db.users.find({"expo_push_token": {"$exists": True, "$ne": ""}}).to_list(10000)
+    for u in users:
+        token = u.get("expo_push_token")
+        if token:
+            await _send_expo_push(token, "Morning Pulse", body)
+
+    logger.info(f"[MorningPulse] Sent to {len(users)} users")
+
+
+async def _send_evening_action():
+    """8:30 PM IST — actionable nudge. Personalized based on user data."""
+    users = await db.users.find({"expo_push_token": {"$exists": True, "$ne": ""}}).to_list(10000)
+
+    for u in users:
+        token = u.get("expo_push_token")
+        if not token:
+            continue
+
+        user_id = str(u.get("id") or u.get("_id"))
+
+        # Get today's spending
+        today = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%Y-%m-%d")
+        today_txns = await db.transactions.find({
+            "user_id": user_id, "type": "expense",
+            "date": {"$regex": f"^{today}"},
+        }).to_list(100)
+        today_spent = sum(t.get("amount", 0) for t in today_txns)
+
+        # Get upcoming EMIs (next 7 days)
+        upcoming_emis = await db.emis.find({
+            "user_id": user_id, "status": "active",
+        }).to_list(50)
+
+        nudge_parts = []
+        if today_spent > 0:
+            nudge_parts.append(f"₹{today_spent:,.0f} spent today")
+
+        for emi in upcoming_emis:
+            due_day = emi.get("due_date") or emi.get("emi_day")
+            if due_day:
+                try:
+                    now = datetime.now(pytz.timezone("Asia/Kolkata"))
+                    due = int(due_day) if isinstance(due_day, (int, float)) else int(str(due_day).split("-")[-1])
+                    days_until = (due - now.day) % 30
+                    if 0 < days_until <= 7:
+                        nudge_parts.append(f"EMI due in {days_until} days")
+                        break
+                except:
+                    pass
+
+        if not nudge_parts:
+            # Skip if nothing to say
+            continue
+
+        body = "⚡ " + ". ".join(nudge_parts) + ". Tap to review."
+        await _send_expo_push(token, "Evening Check-in", body)
+
+    logger.info(f"[EveningAction] Sent nudges to users")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Market Data Endpoints (no auth required — public data)
 # ─────────────────────────────────────────────────────────────────────────────
 import time as _time
@@ -9182,12 +9355,15 @@ _nav_cache:   dict = {}   # scheme_code -> {nav, ts}  — 4 hour TTL
 _stock_cache: dict = {}   # symbol -> {price, ts}  — 15 min TTL
 _mf_search_cache: dict = {}  # query -> {results, ts}  — 30 min TTL
 _stock_search_cache: dict = {}  # query -> {results, ts}  — 30 min TTL
+_commodity_cache:    dict = {}  # {data, ts}  — 30 min TTL
+_market_signals_cache: dict = {}  # in-memory cache for the day
 
 _MMI_TTL   = 3600      # 1 hour
 _NAV_TTL   = 14400     # 4 hours
 _STOCK_TTL = 21600     # 6 hours — post-market close, not real-time
 _MFSEARCH_TTL = 1800   # 30 minutes
 _STOCKSEARCH_TTL = 1800  # 30 minutes
+_COMMODITY_TTL = 1800  # 30 minutes
 
 
 def _mmi_zone(score: float) -> dict:
@@ -9416,6 +9592,375 @@ async def stock_price(symbol: str):
     except Exception as e:
         logging.warning(f"NSE price fetch failed for {ticker}: {e}")
         raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found on NSE. Try the exact ticker (e.g. IDFCFIRSTB, RELIANCE, HDFCBANK).")
+
+
+@api_router.get("/market/mf-returns/{scheme_code}")
+async def mf_returns(scheme_code: str):
+    """Fetch historical returns (1yr, 3yr, 5yr CAGR) for a mutual fund."""
+    _ret_cache_key = f"ret_{scheme_code}"
+    now = _time.time()
+    if _nav_cache.get(_ret_cache_key) and now - _nav_cache[_ret_cache_key]["ts"] < 3600:
+        return _nav_cache[_ret_cache_key]["data"]
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"https://api.mfapi.in/mf/{scheme_code}",
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                data = await resp.json()
+        meta = data.get("meta", {})
+        nav_list = data.get("data", [])
+        if not nav_list or len(nav_list) < 2:
+            raise ValueError("Insufficient NAV data")
+
+        from datetime import datetime as _dt
+        def _parse_nav_date(d):
+            for fmt in ("%d-%m-%Y", "%Y-%m-%d"):
+                try: return _dt.strptime(d, fmt)
+                except: pass
+            return None
+
+        latest_nav = float(nav_list[0]["nav"])
+        latest_date = _parse_nav_date(nav_list[0]["date"])
+
+        def _find_nav_ago(years):
+            if not latest_date: return None
+            target = latest_date.replace(year=latest_date.year - years)
+            best = None
+            for entry in nav_list:
+                d = _parse_nav_date(entry["date"])
+                if d and abs((d - target).days) < 15:
+                    best = float(entry["nav"])
+                    break
+            return best
+
+        returns = {}
+        for yrs, label in [(1, "1yr"), (3, "3yr"), (5, "5yr"), (10, "10yr")]:
+            old_nav = _find_nav_ago(yrs)
+            if old_nav and old_nav > 0:
+                cagr = (pow(latest_nav / old_nav, 1 / yrs) - 1) * 100
+                returns[label] = round(cagr, 1)
+
+        result = {
+            "scheme_code": scheme_code,
+            "name": meta.get("scheme_name", ""),
+            "fund_house": meta.get("fund_house", ""),
+            "scheme_type": meta.get("scheme_type", ""),
+            "nav": latest_nav,
+            "nav_date": nav_list[0]["date"],
+            "returns": returns,
+            "data_points": len(nav_list),
+        }
+        _nav_cache[_ret_cache_key] = {"data": result, "ts": now}
+        return result
+    except Exception as e:
+        logging.warning(f"MF returns fetch failed for {scheme_code}: {e}")
+        raise HTTPException(status_code=404, detail="Could not compute returns")
+
+
+@api_router.get("/market/stock-analysis/{symbol}")
+async def stock_analysis(symbol: str):
+    """Fetch stock fundamentals for investment analysis using yfinance."""
+    ticker = symbol.upper().strip().replace(".NS", "").replace(".BO", "")
+    cache_key = f"analysis_{ticker}"
+    now = _time.time()
+    if _stock_cache.get(cache_key) and now - _stock_cache[cache_key]["ts"] < 3600:
+        return _stock_cache[cache_key]["data"]
+    try:
+        import yfinance as yf
+        stock = yf.Ticker(f"{ticker}.NS")
+        info = stock.info or {}
+        hist = stock.history(period="1y")
+
+        price = info.get("currentPrice") or info.get("regularMarketPrice") or (float(hist["Close"].iloc[-1]) if not hist.empty else None)
+        high_52w = info.get("fiftyTwoWeekHigh") or (float(hist["High"].max()) if not hist.empty else None)
+        low_52w = info.get("fiftyTwoWeekLow") or (float(hist["Low"].min()) if not hist.empty else None)
+
+        result = {
+            "symbol": ticker,
+            "name": info.get("longName") or info.get("shortName", ticker),
+            "sector": info.get("sector", ""),
+            "industry": info.get("industry", ""),
+            "price": round(price, 2) if price else None,
+            "market_cap_cr": round(info.get("marketCap", 0) / 1e7, 0) if info.get("marketCap") else None,
+            # Valuation
+            "pe_ratio": round(info.get("trailingPE", 0), 1) if info.get("trailingPE") else None,
+            "forward_pe": round(info.get("forwardPE", 0), 1) if info.get("forwardPE") else None,
+            "peg_ratio": round(info.get("pegRatio", 0), 2) if info.get("pegRatio") else None,
+            "pb_ratio": round(info.get("priceToBook", 0), 2) if info.get("priceToBook") else None,
+            "ev_to_ebitda": round(info.get("enterpriseToEbitda", 0), 1) if info.get("enterpriseToEbitda") else None,
+            "ev_to_revenue": round(info.get("enterpriseToRevenue", 0), 2) if info.get("enterpriseToRevenue") else None,
+            # Profitability
+            "roe": round(info.get("returnOnEquity", 0) * 100, 1) if info.get("returnOnEquity") else None,
+            "roa": round(info.get("returnOnAssets", 0) * 100, 1) if info.get("returnOnAssets") else None,
+            "profit_margins": round(info.get("profitMargins", 0) * 100, 1) if info.get("profitMargins") else None,
+            "operating_margins": round(info.get("operatingMargins", 0) * 100, 1) if info.get("operatingMargins") else None,
+            "gross_margins": round(info.get("grossMargins", 0) * 100, 1) if info.get("grossMargins") else None,
+            # Earnings
+            "eps": round(info.get("trailingEps", 0), 2) if info.get("trailingEps") else None,
+            "forward_eps": round(info.get("forwardEps", 0), 2) if info.get("forwardEps") else None,
+            "revenue_growth": round(info.get("revenueGrowth", 0) * 100, 1) if info.get("revenueGrowth") else None,
+            # Balance sheet
+            "book_value": round(info.get("bookValue", 0), 2) if info.get("bookValue") else None,
+            "debt_to_equity": round(info.get("debtToEquity", 0), 1) if info.get("debtToEquity") else None,
+            "total_debt_cr": round(info.get("totalDebt", 0) / 1e7, 0) if info.get("totalDebt") else None,
+            "total_cash_cr": round(info.get("totalCash", 0) / 1e7, 0) if info.get("totalCash") else None,
+            "current_ratio": round(info.get("currentRatio", 0), 2) if info.get("currentRatio") else None,
+            # Dividends & returns
+            "dividend_yield": round(info.get("dividendYield", 0) * 100, 2) if info.get("dividendYield") else 0,
+            "payout_ratio": round(info.get("payoutRatio", 0) * 100, 1) if info.get("payoutRatio") else None,
+            # Ownership
+            "promoter_holding": round(info.get("heldPercentInsiders", 0) * 100, 1) if info.get("heldPercentInsiders") else None,
+            "institutional_holding": round(info.get("heldPercentInstitutions", 0) * 100, 1) if info.get("heldPercentInstitutions") else None,
+            # Risk & range
+            "52w_high": round(high_52w, 2) if high_52w else None,
+            "52w_low": round(low_52w, 2) if low_52w else None,
+            "52w_range_pct": round(((price - low_52w) / (high_52w - low_52w)) * 100, 0) if price and high_52w and low_52w and high_52w != low_52w else None,
+            "beta": round(info.get("beta", 0), 2) if info.get("beta") else None,
+            # Analyst
+            "recommendation": info.get("recommendationKey", ""),
+            "target_price": round(info.get("targetMeanPrice", 0), 2) if info.get("targetMeanPrice") else None,
+        }
+        _stock_cache[cache_key] = {"data": result, "ts": now}
+        return result
+    except Exception as e:
+        logging.warning(f"Stock analysis failed for {ticker}: {e}")
+        raise HTTPException(status_code=404, detail=f"Could not fetch data for {ticker}")
+
+
+@api_router.get("/market/stock-insight/{symbol}")
+async def stock_insight(symbol: str, current_user: dict = Depends(get_current_user)):
+    """Get Claude-verified stock insight using real data from yfinance."""
+    cache_key = f"insight_{symbol.upper().strip()}"
+    now = _time.time()
+    if _stock_cache.get(cache_key) and now - _stock_cache[cache_key]["ts"] < 3600:
+        return _stock_cache[cache_key]["data"]
+    try:
+        # Get raw data
+        data = await stock_analysis(symbol)
+        if not data.get("price"):
+            raise HTTPException(status_code=404, detail="Stock not found")
+
+        # Ask Claude for written analysis
+        client = AsyncAnthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+
+        prompt = f"""Analyze this Indian stock for a retail investor. Be specific with numbers. Talk like a knowledgeable friend, not a broker. Never say "buy" or "sell" — only share your perspective.
+
+Stock: {data['name']} ({data['symbol']})
+Sector: {data.get('sector', 'N/A')}
+Price: ₹{data.get('price', 'N/A')}
+Market Cap: ₹{data.get('market_cap_cr', 'N/A')} Cr
+P/E: {data.get('pe_ratio', 'N/A')} | P/B: {data.get('pb_ratio', 'N/A')}
+ROE: {data.get('roe', 'N/A')}% | ROA: {data.get('roa', 'N/A')}%
+Debt/Equity: {data.get('debt_to_equity', 'N/A')}
+Revenue Growth: {data.get('revenue_growth', 'N/A')}%
+Profit Margin: {data.get('profit_margins', 'N/A')}%
+52W Range: ₹{data.get('52w_low', '?')} – ₹{data.get('52w_high', '?')} (currently at {data.get('52w_range_pct', '?')}%)
+Promoter Holding: {data.get('promoter_holding', 'N/A')}%
+Analyst Target: ₹{data.get('target_price', 'N/A')}
+Analyst View: {data.get('recommendation', 'N/A')}
+
+Write 4-5 bullet points covering:
+1. Valuation — is it cheap/fair/expensive for its sector?
+2. Financial health — debt, margins, growth trajectory
+3. Ownership — what promoter/institutional holding tells us
+4. Risk factors — what could go wrong
+5. Bottom line — one sentence summary of your perspective
+
+End with: "⚠️ This is for educational purposes only — not a buy/sell recommendation."
+"""
+
+        result = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            temperature=0.2,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        insight = result.content[0].text.strip()
+
+        response = {
+            **data,
+            "ai_insight": insight,
+            "ai_verified": True,
+        }
+        _stock_cache[cache_key] = {"data": response, "ts": now}
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.warning(f"Stock insight failed for {symbol}: {e}")
+        # Fallback — return data without AI insight
+        try:
+            data = await stock_analysis(symbol)
+            return {**data, "ai_insight": None, "ai_verified": False}
+        except:
+            raise HTTPException(status_code=404, detail="Could not analyze stock")
+
+
+@api_router.get("/market/signals")
+async def get_market_signals(current_user: dict = Depends(get_current_user)):
+    """Return today's cached market signals. Refreshed daily by scheduler."""
+    today = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%Y-%m-%d")
+
+    # Check in-memory cache
+    if _market_signals_cache.get("date") == today and _market_signals_cache.get("signals"):
+        return {"date": today, "signals": _market_signals_cache["signals"]}
+
+    # No data yet — generate on the fly
+    signals = await _fetch_market_signals()
+    return {"date": today, "signals": signals}
+
+
+@api_router.get("/market/commodities")
+async def get_commodity_prices():
+    """Return live commodity prices (Gold, Silver, Bitcoin, Ethereum) in INR."""
+    now = _time.time()
+    if _commodity_cache.get("data") and now - _commodity_cache.get("ts", 0) < _COMMODITY_TTL:
+        return _commodity_cache["data"]
+
+    # Fallback static data
+    fallback = {
+        "commodities": [
+            {"id": "gold", "name": "Gold", "unit": "10g", "priceINR": 93500, "change24h": 0.4, "change1y": 26.2},
+            {"id": "silver", "name": "Silver", "unit": "1kg", "priceINR": 105000, "change24h": -0.2, "change1y": 18.7},
+            {"id": "bitcoin", "name": "Bitcoin", "unit": "1 BTC", "priceINR": 7350000, "change24h": 1.8, "change1y": 52.3},
+            {"id": "ethereum", "name": "Ethereum", "unit": "1 ETH", "priceINR": 285000, "change24h": -0.9, "change1y": 34.1},
+        ],
+        "is_live": False,
+        "updated_at": datetime.now(pytz.timezone("Asia/Kolkata")).isoformat(),
+    }
+
+    commodities = list(fallback["commodities"])  # start with fallback values
+    is_live = False
+
+    # ── Fetch crypto prices from CoinGecko (free, no key) ────────────────────
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.coingecko.com/api/v3/simple/price"
+                "?ids=bitcoin,ethereum&vs_currencies=inr&include_24hr_change=true",
+                timeout=aiohttp.ClientTimeout(total=8),
+            ) as resp:
+                if resp.status == 200:
+                    cg = await resp.json()
+                    if "bitcoin" in cg:
+                        for c in commodities:
+                            if c["id"] == "bitcoin":
+                                c["priceINR"] = cg["bitcoin"].get("inr", c["priceINR"])
+                                c["change24h"] = round(cg["bitcoin"].get("inr_24h_change", c["change24h"]), 2)
+                        is_live = True
+                    if "ethereum" in cg:
+                        for c in commodities:
+                            if c["id"] == "ethereum":
+                                c["priceINR"] = cg["ethereum"].get("inr", c["priceINR"])
+                                c["change24h"] = round(cg["ethereum"].get("inr_24h_change", c["change24h"]), 2)
+                        is_live = True
+                else:
+                    logging.warning(f"CoinGecko API returned status {resp.status}")
+    except Exception as e:
+        logging.warning(f"CoinGecko fetch failed: {e}")
+
+    # ── Fetch gold/silver from metals-api.com (free demo key) ────────────────
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://metals-api.com/api/latest"
+                "?access_key=demo&base=INR&symbols=XAU,XAG",
+                timeout=aiohttp.ClientTimeout(total=8),
+            ) as resp:
+                if resp.status == 200:
+                    metals = await resp.json()
+                    if metals.get("success") and metals.get("rates"):
+                        rates = metals["rates"]
+                        # API returns 1/oz rates; convert to INR per standard unit
+                        if "XAU" in rates and rates["XAU"] > 0:
+                            gold_inr_per_oz = 1.0 / rates["XAU"]
+                            gold_inr_per_10g = round(gold_inr_per_oz * 10 / 31.1035, 0)
+                            for c in commodities:
+                                if c["id"] == "gold":
+                                    c["priceINR"] = gold_inr_per_10g
+                            is_live = True
+                        if "XAG" in rates and rates["XAG"] > 0:
+                            silver_inr_per_oz = 1.0 / rates["XAG"]
+                            silver_inr_per_kg = round(silver_inr_per_oz * 1000 / 31.1035, 0)
+                            for c in commodities:
+                                if c["id"] == "silver":
+                                    c["priceINR"] = silver_inr_per_kg
+                            is_live = True
+                else:
+                    logging.warning(f"Metals API returned status {resp.status}")
+    except Exception as e:
+        logging.warning(f"Metals API fetch failed: {e}")
+
+    result = {
+        "commodities": commodities,
+        "is_live": is_live,
+        "updated_at": datetime.now(pytz.timezone("Asia/Kolkata")).isoformat(),
+    }
+    _commodity_cache["data"] = result
+    _commodity_cache["ts"] = now
+    return result
+
+
+@api_router.get("/admin/api-health")
+async def check_api_health(admin_secret: str = ""):
+    """Admin-only: check if Anthropic API key is working."""
+    if not ADMIN_SECRET or admin_secret != ADMIN_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid admin secret")
+    try:
+        client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        resp = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=10,
+            messages=[{"role": "user", "content": "ping"}],
+        )
+        return {"status": "healthy", "model": "claude-haiku-4-5-20251001", "response": resp.content[0].text}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@api_router.get("/admin/api-usage")
+async def get_api_usage(admin_secret: str = ""):
+    """Admin-only: return AI API usage stats and estimated costs.
+    Note: ai_usage table is a no-op in Supabase, so usage stats are unavailable.
+    User/activity counts still work via the profiles table.
+    """
+    if not ADMIN_SECRET or admin_secret != ADMIN_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid admin secret")
+
+    today = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%Y-%m-%d")
+    month_start = datetime.now(pytz.timezone("Asia/Kolkata")).replace(day=1).strftime("%Y-%m-%d")
+
+    # ai_usage is a no-op table in Supabase — return zeros for usage stats
+    today_count = 0
+    month_count = 0
+    total_tokens = 0
+
+    # Total users (profiles table)
+    total_users = await db.users.count_documents({})
+
+    # Active today — count chat messages created today
+    active_users_today = []
+    try:
+        chat_rows = await db.chat_messages.find({
+            "created_at": {"$gte": f"{today}T00:00:00"},
+        }).to_list(10000)
+        active_users_today = list(set(r.get("user_id") for r in chat_rows if r.get("user_id")))
+    except Exception:
+        pass
+
+    estimated_cost = round(total_tokens * 0.000009, 2)
+
+    return {
+        "today_calls": today_count,
+        "month_calls": month_count,
+        "total_users": total_users,
+        "active_today": len(active_users_today),
+        "total_tokens": total_tokens,
+        "estimated_cost_usd": estimated_cost,
+        "usage_by_day": [],
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

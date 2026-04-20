@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.config import get_settings
 from app.database import get_admin_db
@@ -81,3 +82,47 @@ async def make_admin(body: dict):
     if not res.data:
         raise HTTPException(404, "User not found")
     return {"ok": True}
+
+
+@router.get("/api-health")
+async def api_health(admin_secret: str = Query("")):
+    """Ping Anthropic API to verify the key is valid."""
+    _check_secret(admin_secret)
+    try:
+        from anthropic import AsyncAnthropic
+        client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        resp = await client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=10,
+            messages=[{"role": "user", "content": "ping"}],
+        )
+        return {
+            "anthropic": "ok",
+            "model": resp.model,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        return {
+            "anthropic": "error",
+            "detail": str(e),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+@router.get("/api-usage")
+async def api_usage(admin_secret: str = Query("")):
+    """Return API usage stats. Placeholder until ai_usage table exists."""
+    _check_secret(admin_secret)
+    supabase = get_admin_db()
+    total_users = supabase.table("profiles").select("id", count="exact").execute().count or 0
+    pro_users = supabase.table("profiles").select("id", count="exact").eq("is_pro", True).execute().count or 0
+
+    return {
+        "total_users": total_users,
+        "pro_users": pro_users,
+        "ai_requests_today": None,
+        "ai_requests_month": None,
+        "ai_tokens_month": None,
+        "note": "Detailed AI usage tracking not yet implemented. Add an ai_usage table to enable.",
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
