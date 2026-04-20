@@ -7,7 +7,8 @@ import Navigation from "@/components/Navigation";
 import {
   Users, MessageSquare, TrendingUp, Star, BarChart2,
   ChevronDown, ChevronUp, Shield, Crown, Bug, Lightbulb, Heart, MessageCircle, Trash2,
-  Mail, Send, CheckCircle2, AlertCircle, Loader2
+  Mail, Send, CheckCircle2, AlertCircle, Loader2,
+  Activity, Zap, DollarSign, AlertTriangle, Cpu
 } from "lucide-react";
 
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN");
@@ -198,6 +199,25 @@ export default function AdminPortal() {
   const [emailSending, setEmailSending] = useState(false);
   const [emailResult, setEmailResult] = useState(null);
 
+  // API billing / health state
+  const [apiUsage, setApiUsage] = useState(null);
+  const [apiHealth, setApiHealth] = useState(null);
+  const [apiLoading, setApiLoading] = useState(false);
+
+  const loadApiData = async (secret) => {
+    setApiLoading(true);
+    try {
+      const qs = `?admin_secret=${encodeURIComponent(secret)}`;
+      const [usage, health] = await Promise.all([
+        axios.get(`${API}/admin/api-usage${qs}`).catch(() => ({ data: null })),
+        axios.get(`${API}/admin/api-health${qs}`).catch(() => ({ data: { status: "error", error: "Request failed" } })),
+      ]);
+      setApiUsage(usage.data);
+      setApiHealth(health.data);
+    } catch (_) { /* silently fail — non-critical */ }
+    finally { setApiLoading(false); }
+  };
+
   const loadAll = async (secret) => {
     setLoading(true);
     setLoadError("");
@@ -213,6 +233,7 @@ export default function AdminPortal() {
       setFeedback(f.data.items || []);
       setFeedTotal(f.data.total || 0);
       setAdminSecret(secret);
+      loadApiData(secret);  // fire-and-forget — loads API billing data in background
     } catch (e) {
       setLoadError(e.response?.data?.detail || "Invalid secret or server error");
     }
@@ -390,6 +411,88 @@ export default function AdminPortal() {
           {/* ── Overview ── */}
           {tab === "overview" && stats && (
             <div className="space-y-5">
+
+              {/* ── API & Billing ── */}
+              <div className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center">
+                      <Cpu size={16} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-stone-700">API & Billing</p>
+                      <p className="text-xs text-stone-400">Anthropic API usage and health</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {apiHealth ? (
+                      apiHealth.status === "healthy" ? (
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> API Healthy
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> API Error
+                        </span>
+                      )
+                    ) : apiLoading ? (
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-stone-400 bg-stone-50 border border-stone-200 px-2.5 py-1 rounded-full">
+                        <Loader2 size={10} className="animate-spin" /> Checking...
+                      </span>
+                    ) : null}
+                    <button
+                      onClick={() => loadApiData(adminSecret)}
+                      disabled={apiLoading}
+                      className="text-xs text-stone-400 hover:text-violet-500 transition-colors"
+                    >
+                      ↺ Refresh
+                    </button>
+                  </div>
+                </div>
+
+                {/* Alert banner */}
+                {apiUsage && (apiUsage.today_calls > 500 || apiUsage.estimated_cost_usd > 10) && (
+                  <div className="flex items-center gap-3 p-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+                    <p className="text-xs font-semibold text-amber-800">
+                      {apiUsage.today_calls > 500 && `High usage: ${fmt(apiUsage.today_calls)} API calls today. `}
+                      {apiUsage.estimated_cost_usd > 10 && `Estimated cost: $${apiUsage.estimated_cost_usd} this period.`}
+                    </p>
+                  </div>
+                )}
+
+                {/* API health error detail */}
+                {apiHealth && apiHealth.status === "error" && (
+                  <div className="flex items-center gap-3 p-3 mb-4 bg-red-50 border border-red-200 rounded-xl">
+                    <AlertCircle size={16} className="text-red-500 shrink-0" />
+                    <p className="text-xs text-red-700 font-mono break-all">{apiHealth.error}</p>
+                  </div>
+                )}
+
+                {apiUsage ? (
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <StatCard label="AI Calls Today"   value={fmt(apiUsage.today_calls)}   icon={Zap}         color="bg-violet-50 text-violet-600" />
+                    <StatCard label="Calls This Month" value={fmt(apiUsage.month_calls)}   icon={Activity}    color="bg-indigo-50 text-indigo-600" />
+                    <StatCard label="Est. Cost (USD)"  value={`$${apiUsage.estimated_cost_usd}`} icon={DollarSign} color="bg-emerald-50 text-emerald-600" />
+                    <StatCard label="Total Tokens"     value={fmt(apiUsage.total_tokens)}  icon={Cpu}         color="bg-sky-50 text-sky-600" />
+                  </div>
+                ) : apiLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 size={18} className="animate-spin text-stone-300" />
+                  </div>
+                ) : (
+                  <p className="text-xs text-stone-400 text-center py-4">No API usage data available</p>
+                )}
+
+                {/* Active users row */}
+                {apiUsage && (
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <StatCard label="Total Users"   value={fmt(apiUsage.total_users)}  icon={Users}    color="bg-blue-50 text-blue-600" />
+                    <StatCard label="Active Today"  value={fmt(apiUsage.active_today)} sub="users with chat activity" icon={Activity} color="bg-green-50 text-green-600" />
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard label="Total Users"     value={fmt(stats.total_users)}    sub={`+${fmt(stats.new_this_month)} this month`} icon={Users}        color="bg-blue-50 text-blue-600" />
                 <StatCard label="Pro Users"       value={fmt(stats.pro_users)}      sub={`${stats.pro_pct}% conversion`}             icon={Crown}        color="bg-amber-50 text-amber-600" />

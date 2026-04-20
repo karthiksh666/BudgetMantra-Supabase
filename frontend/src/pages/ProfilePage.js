@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { Link } from 'react-router-dom';
 import Navigation from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +8,35 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '@/App';
-import { User, Mail, Phone, Lock, Flame, Save, Eye, EyeOff, CheckCircle, Shield, Key, Copy, RefreshCw, Bell, AtSign, AlertTriangle, Crown, Zap, Trash2 } from 'lucide-react';
+import { User, Mail, Phone, Lock, Flame, Save, Eye, EyeOff, CheckCircle, Shield, Key, Copy, RefreshCw, Bell, AtSign, AlertTriangle, Crown, Zap, Trash2, Star, ChevronRight, RotateCcw, Heart, X, Target, CreditCard, BarChart3, Compass, LogOut, Pencil } from 'lucide-react';
+
+/* ── XP Level System ── */
+const XP_LEVELS = [
+  { title: 'Budget Padawan',      minXp: 0,    emoji: '🌱' },
+  { title: 'Bachat Warrior',      minXp: 100,  emoji: '⚔️' },
+  { title: 'Paisa Samajhdar',     minXp: 300,  emoji: '🧠' },
+  { title: 'Nivesh Ninja',        minXp: 600,  emoji: '🥷' },
+  { title: 'Dhan Shilpi',         minXp: 1000, emoji: '🏗️' },
+  { title: 'Paisa Pandit',        minXp: 1500, emoji: '📚' },
+  { title: 'Artha Guru',          minXp: 2200, emoji: '🧘' },
+  { title: 'Lakshmi ka Laadla',   minXp: 3000, emoji: '✨' },
+  { title: 'Chanakya Shishya',    minXp: 4000, emoji: '🦉' },
+  { title: 'Arthashastra Master', minXp: 5500, emoji: '👑' },
+];
+
+function getLevel(xp) {
+  let level = XP_LEVELS[0];
+  for (const l of XP_LEVELS) {
+    if (xp >= l.minXp) level = l;
+    else break;
+  }
+  const idx = XP_LEVELS.indexOf(level);
+  const next = XP_LEVELS[idx + 1] || null;
+  const progressToNext = next
+    ? ((xp - level.minXp) / (next.minXp - level.minXp)) * 100
+    : 100;
+  return { ...level, idx, next, progressToNext: Math.min(progressToNext, 100), xp };
+}
 
 const ProfilePage = () => {
   const { user, token, refreshUser, logout } = useAuth();
@@ -33,6 +62,8 @@ const ProfilePage = () => {
   const [deleteStep, setDeleteStep]   = useState(0); // 0=idle, 1=confirm, 2=deleting
   const [deleteInput, setDeleteInput] = useState('');
   const [cancelStep, setCancelStep]   = useState(0); // 0=idle, 1=confirm
+  const [editInfoOpen, setEditInfoOpen] = useState(false);
+  const [pwModalOpen, setPwModalOpen]   = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -102,12 +133,13 @@ const ProfilePage = () => {
     if (pwForm.newPw.length < 8) { toast.error('Password must be at least 8 characters'); return; }
     setSavingPw(true);
     try {
-      await axios.post(`${API}/auth/change-password`, {
+      await axios.put(`${API}/auth/change-password`, {
         current_password: pwForm.current,
         new_password: pwForm.newPw,
       }, { headers: { Authorization: `Bearer ${token}` } });
       toast.success('Password changed successfully!');
       setPwForm({ current: '', newPw: '', confirm: '' });
+      setPwModalOpen(false);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to change password');
     } finally {
@@ -139,6 +171,29 @@ const ProfilePage = () => {
       setDeleteStep(1);
     }
   };
+
+  /* ── Profile Completeness ── */
+  const completeness = useMemo(() => {
+    let pct = 0;
+    if (user?.name) pct += 15;
+    if (user?.email) pct += 15;
+    if (user?.phone || form.phone) pct += 10;
+    if (user?.dob) pct += 10;
+    if (user?.avatar) pct += 10;
+    try { if (localStorage.getItem('bm_life_profile')) pct += 20; } catch {}
+    try { if (localStorage.getItem('bm_salary_profile')) pct += 20; } catch {}
+    return pct;
+  }, [user, form.phone]);
+
+  const completenessColor = completeness < 50 ? 'bg-red-500' : completeness < 80 ? 'bg-amber-500' : 'bg-emerald-500';
+  const completenessTextColor = completeness < 50 ? 'text-red-600' : completeness < 80 ? 'text-amber-600' : 'text-emerald-600';
+
+  /* ── XP / Level ── */
+  const levelInfo = useMemo(() => {
+    let xp = 0;
+    try { xp = parseInt(localStorage.getItem('bm_web_xp') || '0', 10) || 0; } catch {}
+    return getLevel(xp);
+  }, []);
 
   const initials = (user?.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -185,85 +240,154 @@ const ProfilePage = () => {
           )}
         </div>
 
-        {/* Personal Info */}
-        <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm space-y-5">
-          <h2 className="font-bold text-stone-800 font-['Outfit'] text-lg flex items-center gap-2">
-            <User size={18} className="text-orange-500" /> Personal Information
-          </h2>
-
-          <div className="space-y-1.5">
-            <Label className="text-stone-600 text-sm font-medium flex items-center gap-1.5">
-              <User size={13} className="text-stone-400" /> Full Name
-            </Label>
-            <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              placeholder="Your full name"
-              className="h-11 bg-stone-50 border-stone-200 focus:border-orange-400 rounded-xl" />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-stone-600 text-sm font-medium flex items-center gap-1.5">
-              <Mail size={13} className="text-stone-400" /> Email Address
-            </Label>
-            <Input value={user?.email || ''} disabled
-              className="h-11 bg-stone-100 border-stone-200 rounded-xl text-stone-400 cursor-not-allowed" />
-            <p className="text-xs text-stone-400">Email cannot be changed</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-stone-600 text-sm font-medium flex items-center gap-1.5">
-              <Phone size={13} className="text-stone-400" /> Phone Number
-            </Label>
-            <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
-              placeholder="+91 98765 43210" type="tel"
-              className="h-11 bg-stone-50 border-stone-200 focus:border-orange-400 rounded-xl" />
-            <p className="text-xs text-stone-400">Used for EMI reminders and notifications</p>
-          </div>
-
-          {profileLocked && (
-            <div className="flex items-center gap-2 px-3 py-2.5 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 text-xs">
-              <Lock size={13} /> Profile is locked — toggle the lock in Security settings to edit
+        {/* ── Life Profile Link ── */}
+        <Link to="/life-profile" className="block">
+          <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm hover:border-orange-200 hover:shadow-md transition-all group cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 bg-rose-50 rounded-xl flex items-center justify-center">
+                  <Heart size={20} className="text-rose-500" />
+                </div>
+                <div>
+                  <p className="font-bold text-stone-800 font-['Outfit']">Life Profile</p>
+                  <p className="text-xs text-stone-400 mt-0.5">Family, stage, obligations</p>
+                </div>
+              </div>
+              <ChevronRight size={18} className="text-stone-300 group-hover:text-orange-500 transition-colors" />
             </div>
-          )}
-          <Button onClick={handleSave} disabled={saving || profileLocked}
-            className="w-full h-11 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
-            <Save size={15} className="mr-2" />
-            {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
+          </div>
+        </Link>
+
+        {/* ── Profile Completeness Bar ── */}
+        <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-stone-800 font-['Outfit'] text-lg flex items-center gap-2">
+              <CheckCircle size={18} className="text-orange-500" /> Profile Completeness
+            </h2>
+            <span className={`text-sm font-bold ${completenessTextColor}`}>{completeness}%</span>
+          </div>
+          <div className="w-full h-3 bg-stone-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ease-out ${completenessColor}`}
+              style={{ width: `${completeness}%` }}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-stone-400">
+            {[
+              { ok: !!user?.name,          label: 'Name' },
+              { ok: !!user?.email,         label: 'Email' },
+              { ok: !!(user?.phone || form.phone), label: 'Phone' },
+              { ok: !!user?.dob,           label: 'DOB' },
+              { ok: !!user?.avatar,        label: 'Avatar' },
+              { ok: !!(() => { try { return localStorage.getItem('bm_life_profile'); } catch { return null; } })(), label: 'Life Profile' },
+              { ok: !!(() => { try { return localStorage.getItem('bm_salary_profile'); } catch { return null; } })(), label: 'Salary Profile' },
+            ].map(({ ok, label }) => (
+              <span key={label} className={`flex items-center gap-1 px-2 py-1 rounded-full border ${ok ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-stone-50 border-stone-200 text-stone-400'}`}>
+                {ok ? <CheckCircle size={11} /> : <span className="w-[11px] h-[11px] rounded-full border border-current inline-block" />}
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
 
-        {/* Change Password */}
-        <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm space-y-5">
+        {/* ── XP / Chanakya Level Card ── */}
+        <div className="bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl p-6 text-white relative overflow-hidden">
+          <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-white/10 rounded-full blur-xl" />
+          <div className="relative">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-2xl backdrop-blur-sm border border-white/20">
+                {levelInfo.emoji}
+              </div>
+              <div>
+                <p className="text-white/60 text-xs font-medium uppercase tracking-wider">Chanakya Level {levelInfo.idx + 1}</p>
+                <h3 className="text-xl font-bold font-['Outfit']">{levelInfo.title}</h3>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-white/70 flex items-center gap-1.5">
+                  <Star size={13} className="text-yellow-300" /> {levelInfo.xp} XP
+                </span>
+                {levelInfo.next ? (
+                  <span className="text-white/50 text-xs">{levelInfo.next.minXp} XP for {levelInfo.next.title}</span>
+                ) : (
+                  <span className="text-yellow-300 text-xs font-semibold">Max level reached!</span>
+                )}
+              </div>
+              <div className="w-full h-2.5 bg-white/15 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-yellow-300 to-amber-400 transition-all duration-700 ease-out"
+                  style={{ width: `${levelInfo.progressToNext}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Quick Access ── */}
+        <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm space-y-4">
           <h2 className="font-bold text-stone-800 font-['Outfit'] text-lg flex items-center gap-2">
-            <Lock size={18} className="text-orange-500" /> Change Password
+            <Zap size={18} className="text-indigo-500" /> Quick Access
           </h2>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { icon: <Target size={16} className="text-emerald-500" />, label: 'Goals', path: '/savings-goals', bg: 'bg-emerald-50/50', border: 'border-emerald-100 hover:border-emerald-200', text: 'text-emerald-600' },
+              { icon: <CreditCard size={16} className="text-indigo-500" />, label: 'EMIs', path: '/emis', bg: 'bg-indigo-50/50', border: 'border-indigo-100 hover:border-indigo-200', text: 'text-indigo-600' },
+              { icon: <BarChart3 size={16} className="text-blue-500" />, label: 'Investments', path: '/investments', bg: 'bg-blue-50/50', border: 'border-blue-100 hover:border-blue-200', text: 'text-blue-600' },
+              { icon: <Compass size={16} className="text-sky-600" />, label: 'Insights', path: '/insights', bg: 'bg-sky-50/50', border: 'border-sky-100 hover:border-sky-200', text: 'text-sky-600' },
+            ].map(({ icon, label, path, bg, border, text }) => (
+              <Link key={path} to={path}
+                className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all hover:shadow-sm ${bg} ${border}`}>
+                {icon}
+                <span className={`text-sm font-semibold ${text}`}>{label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Contact Info (read-only, edit as modal) ── */}
+        <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-stone-800 font-['Outfit'] text-lg flex items-center gap-2">
+              <User size={18} className="text-orange-500" /> Contact Info
+            </h2>
+            <button onClick={() => setEditInfoOpen(true)}
+              className="flex items-center gap-1.5 text-orange-500 hover:text-orange-600 text-sm font-bold transition-colors">
+              <Pencil size={13} /> Edit
+            </button>
+          </div>
 
           {[
-            { label: 'Current Password', key: 'current', placeholder: 'Your current password' },
-            { label: 'New Password', key: 'newPw', placeholder: 'At least 8 characters' },
-            { label: 'Confirm New Password', key: 'confirm', placeholder: 'Re-enter new password' },
-          ].map(({ label, key, placeholder }) => (
-            <div key={key} className="space-y-1.5">
-              <Label className="text-stone-600 text-sm font-medium">{label}</Label>
-              <div className="relative">
-                <Input type={showPw ? 'text' : 'password'} placeholder={placeholder}
-                  value={pwForm[key]} onChange={e => setPwForm({ ...pwForm, [key]: e.target.value })}
-                  className="h-11 bg-stone-50 border-stone-200 focus:border-orange-400 rounded-xl pr-10" />
-                {key === 'current' && (
-                  <button type="button" onClick={() => setShowPw(!showPw)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-orange-500">
-                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                )}
+            { icon: <User size={15} className="text-stone-400" />, label: 'Full Name', value: form.name || '-' },
+            { icon: <Mail size={15} className="text-stone-400" />, label: 'Email', value: user?.email || '-' },
+            { icon: <Phone size={15} className="text-stone-400" />, label: 'Phone', value: form.phone || '-' },
+          ].map(({ icon, label, value }) => (
+            <div key={label} className="flex items-center gap-3 py-2.5 border-t border-stone-100 first:border-t-0">
+              {icon}
+              <div className="flex-1">
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">{label}</p>
+                <p className="text-sm font-medium text-stone-800 mt-0.5">{value}</p>
               </div>
             </div>
           ))}
-
-          <Button onClick={handlePasswordChange} disabled={savingPw || !pwForm.current || !pwForm.newPw || !pwForm.confirm}
-            variant="outline"
-            className="w-full h-11 border-2 border-stone-200 hover:border-orange-400 hover:text-orange-600 rounded-xl font-semibold transition-all">
-            {savingPw ? 'Changing...' : 'Change Password'}
-          </Button>
         </div>
+
+        {/* ── Change Password (card that opens modal) ── */}
+        <button onClick={() => setPwModalOpen(true)}
+          className="w-full bg-white rounded-2xl p-5 border border-stone-100 shadow-sm hover:border-indigo-200 hover:shadow-md transition-all group cursor-pointer text-left">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-11 h-11 bg-indigo-50 rounded-xl flex items-center justify-center">
+                <Lock size={20} className="text-indigo-500" />
+              </div>
+              <div>
+                <p className="font-bold text-stone-800 font-['Outfit']">Change Password</p>
+                <p className="text-xs text-stone-400 mt-0.5">Update your account password</p>
+              </div>
+            </div>
+            <ChevronRight size={18} className="text-stone-300 group-hover:text-indigo-500 transition-colors" />
+          </div>
+        </button>
 
         {/* Profile Lock + PDF PIN */}
         <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm space-y-5">
@@ -314,7 +438,7 @@ const ProfilePage = () => {
             ) : (
               <button onClick={handleGeneratePin} disabled={generatingPin}
                 className="w-full py-2.5 rounded-xl border-2 border-dashed border-stone-200 text-stone-500 text-sm font-medium hover:border-orange-400 hover:text-orange-500 transition-colors">
-                {generatingPin ? 'Generating…' : '+ Generate PDF PIN'}
+                {generatingPin ? 'Generating...' : '+ Generate PDF PIN'}
               </button>
             )}
           </div>
@@ -359,7 +483,7 @@ const ProfilePage = () => {
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setNotifPrefs(p => ({ ...p, reminder_days_before: Math.max(1, p.reminder_days_before - 1) }))}
-                className="w-7 h-7 rounded-lg bg-white border border-stone-200 text-stone-600 font-bold text-lg flex items-center justify-center hover:border-orange-300">−</button>
+                className="w-7 h-7 rounded-lg bg-white border border-stone-200 text-stone-600 font-bold text-lg flex items-center justify-center hover:border-orange-300">-</button>
               <span className="w-6 text-center font-bold text-stone-800 text-sm">{notifPrefs.reminder_days_before}</span>
               <button onClick={() => setNotifPrefs(p => ({ ...p, reminder_days_before: Math.min(14, p.reminder_days_before + 1) }))}
                 className="w-7 h-7 rounded-lg bg-white border border-stone-200 text-stone-600 font-bold text-lg flex items-center justify-center hover:border-orange-300">+</button>
@@ -367,10 +491,10 @@ const ProfilePage = () => {
             </div>
           </div>
 
-          {/* Delivery channel — chat toggle */}
+          {/* Delivery channel -- chat toggle */}
           <div className="flex items-center justify-between px-3.5 py-3 bg-amber-50 rounded-xl border border-amber-100">
             <div className="flex items-center gap-2.5">
-              <span className="text-base">🔔</span>
+              <Bell size={16} className="text-amber-500" />
               <div>
                 <p className="text-sm font-medium text-stone-700">Notify via Chanakya chat</p>
                 <p className="text-xs text-stone-400">Reminders appear in your chat feed</p>
@@ -387,18 +511,17 @@ const ProfilePage = () => {
             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3">Notify me about</p>
             <div className="grid grid-cols-1 gap-2">
               {[
-                { key: 'notify_emi',            label: 'EMI & Loan due dates',        emoji: '⏰' },
-                { key: 'notify_subscriptions',  label: 'Subscription renewals',       emoji: '📺' },
-                { key: 'notify_birthdays',      label: 'Birthdays & anniversaries',   emoji: '🎂' },
-                { key: 'notify_savings_goals',  label: 'Savings goal deadlines',      emoji: '🎯' },
-                { key: 'notify_when_to_buy',    label: 'When-to-Buy item is ready',   emoji: '🛍️' },
-                { key: 'notify_hand_loans',     label: 'Hand loan due dates',         emoji: '🤝' },
-                { key: 'notify_salary',         label: 'Salary / paycheck day',       emoji: '💰' },
-                { key: 'notify_budget_summary', label: 'Monthly budget summary',      emoji: '📊' },
-              ].map(({ key, label, emoji }) => (
+                { key: 'notify_emi',            label: 'EMI & Loan due dates',        emoji: 'clock' },
+                { key: 'notify_subscriptions',  label: 'Subscription renewals',       emoji: 'tv' },
+                { key: 'notify_birthdays',      label: 'Birthdays & anniversaries',   emoji: 'cake' },
+                { key: 'notify_savings_goals',  label: 'Savings goal deadlines',      emoji: 'target' },
+                { key: 'notify_when_to_buy',    label: 'When-to-Buy item is ready',   emoji: 'bag' },
+                { key: 'notify_hand_loans',     label: 'Hand loan due dates',         emoji: 'handshake' },
+                { key: 'notify_salary',         label: 'Salary / paycheck day',       emoji: 'wallet' },
+                { key: 'notify_budget_summary', label: 'Monthly budget summary',      emoji: 'chart' },
+              ].map(({ key, label }) => (
                 <div key={key} className="flex items-center justify-between px-3.5 py-3 bg-stone-50 rounded-xl border border-stone-100">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-base">{emoji}</span>
                     <p className="text-sm text-stone-700">{label}</p>
                   </div>
                   <button onClick={() => toggleNotif(key)}
@@ -413,11 +536,11 @@ const ProfilePage = () => {
           <Button onClick={handleSaveNotifPrefs} disabled={savingNotif}
             className="w-full h-11 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/20">
             <Save size={15} className="mr-2" />
-            {savingNotif ? 'Saving…' : 'Save Notification Preferences'}
+            {savingNotif ? 'Saving...' : 'Save Notification Preferences'}
           </Button>
         </div>
 
-        {/* Pro upgrade banner (testing phase — remove before full launch) */}
+        {/* Pro upgrade banner */}
         {!user?.is_pro && (
           <div className="relative overflow-hidden rounded-2xl p-5"
             style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #9333ea 50%, #a855f7 100%)' }}>
@@ -447,30 +570,57 @@ const ProfilePage = () => {
           </div>
         )}
 
-        {/* Streak info */}
-        <div className="bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-100 rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Flame size={18} className="text-orange-500" />
-            <h3 className="font-bold text-stone-800 font-['Outfit']">Activity Streak</h3>
-          </div>
-          <p className="text-stone-500 text-sm leading-relaxed">
-            Your streak increases every day you add an expense or transaction. Adding data daily keeps your Financial Health Score accurate and helps Chanakya give you better advice.
-          </p>
-          <div className="mt-3 flex items-center gap-2">
-            <div className="px-3 py-1.5 bg-orange-100 rounded-full">
-              <span className="text-orange-700 font-bold text-sm">{streak} day{streak !== 1 ? 's' : ''}</span>
-            </div>
-            <span className="text-stone-400 text-xs">current streak</span>
-          </div>
-        </div>
-
-        {/* ── Subscription / Danger Zone ── */}
+        {/* ── Security Settings ── */}
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
           <div className="px-6 pt-5 pb-4 border-b border-stone-100">
             <h2 className="font-bold text-stone-800 font-['Outfit'] text-lg flex items-center gap-2">
-              <AlertTriangle size={18} className="text-rose-500" /> Account & Subscription
+              <Shield size={18} className="text-rose-500" /> Security Settings
             </h2>
-            <p className="text-stone-400 text-xs mt-0.5">Manage your plan or permanently delete your account</p>
+            <p className="text-stone-400 text-xs mt-0.5">Manage your plan, reset data, or delete your account</p>
+          </div>
+
+          {/* Reset App Data */}
+          <div className="px-6 py-4 border-b border-stone-100">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+                  <RotateCcw size={16} className="text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-stone-700">Reset App Data</p>
+                  <p className="text-xs text-stone-400">Clear all locally cached data (localStorage)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to reset all local app data? This clears caches, preferences, and locally stored profiles. Your account and server data will NOT be affected.')) {
+                    localStorage.clear();
+                    toast.success('Local app data has been reset. Reloading...');
+                    setTimeout(() => window.location.reload(), 1000);
+                  }
+                }}
+                className="text-xs font-semibold text-amber-600 border border-amber-200 px-3 py-1.5 rounded-xl hover:bg-amber-50 transition-colors">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          {/* Sign Out */}
+          <div className="px-6 py-4 border-b border-stone-100">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-rose-100 rounded-xl flex items-center justify-center shrink-0">
+                  <LogOut size={16} className="text-rose-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-rose-600">Sign Out</p>
+                </div>
+              </div>
+              <button onClick={() => { if (window.confirm('Are you sure you want to sign out?')) logout?.(); }}
+                className="text-xs font-semibold text-rose-500 border border-rose-200 px-3 py-1.5 rounded-xl hover:bg-rose-50 transition-colors">
+                Sign Out
+              </button>
+            </div>
           </div>
 
           {/* Cancel subscription (Pro users only) */}
@@ -483,7 +633,7 @@ const ProfilePage = () => {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-stone-700">Budget Mantra Pro</p>
-                    <p className="text-xs text-stone-400">Your active plan · All features unlocked</p>
+                    <p className="text-xs text-stone-400">Your active plan - All features unlocked</p>
                   </div>
                 </div>
                 {cancelStep === 0 ? (
@@ -555,7 +705,7 @@ const ProfilePage = () => {
                   </button>
                   <button onClick={handleDeleteAccount} disabled={deleteStep === 2}
                     className="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
-                    <Trash2 size={13} /> {deleteStep === 2 ? 'Deleting…' : 'Delete my account'}
+                    <Trash2 size={13} /> {deleteStep === 2 ? 'Deleting...' : 'Delete my account'}
                   </button>
                 </div>
               </div>
@@ -564,6 +714,103 @@ const ProfilePage = () => {
         </div>
 
       </div>
+
+      {/* ── Edit Contact Info Modal ── */}
+      {editInfoOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditInfoOpen(false)} />
+          <div className="relative bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 space-y-5 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-stone-800 font-['Outfit'] text-lg">Edit Contact Info</h2>
+              <button onClick={() => setEditInfoOpen(false)} className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-stone-600 text-sm font-medium flex items-center gap-1.5">
+                <User size={13} className="text-stone-400" /> Full Name
+              </Label>
+              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                placeholder="Your full name"
+                className="h-11 bg-stone-50 border-stone-200 focus:border-orange-400 rounded-xl" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-stone-600 text-sm font-medium flex items-center gap-1.5">
+                <Mail size={13} className="text-stone-400" /> Email Address
+              </Label>
+              <Input value={user?.email || ''} disabled
+                className="h-11 bg-stone-100 border-stone-200 rounded-xl text-stone-400 cursor-not-allowed" />
+              <p className="text-xs text-stone-400">Email cannot be changed</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-stone-600 text-sm font-medium flex items-center gap-1.5">
+                <Phone size={13} className="text-stone-400" /> Phone Number
+              </Label>
+              <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                placeholder="+91 98765 43210" type="tel"
+                className="h-11 bg-stone-50 border-stone-200 focus:border-orange-400 rounded-xl" />
+            </div>
+
+            {profileLocked && (
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 text-xs">
+                <Lock size={13} /> Profile is locked -- toggle the lock in Security settings to edit
+              </div>
+            )}
+            <Button onClick={async () => { await handleSave(); setEditInfoOpen(false); }} disabled={saving || profileLocked}
+              className="w-full h-11 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+              <Save size={15} className="mr-2" />
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Change Password Modal ── */}
+      {pwModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPwModalOpen(false); setPwForm({ current: '', newPw: '', confirm: '' }); }} />
+          <div className="relative bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 space-y-5 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-stone-800 font-['Outfit'] text-lg flex items-center gap-2">
+                <Lock size={18} className="text-indigo-500" /> Change Password
+              </h2>
+              <button onClick={() => { setPwModalOpen(false); setPwForm({ current: '', newPw: '', confirm: '' }); }}
+                className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            {[
+              { label: 'Current Password', key: 'current', placeholder: 'Your current password' },
+              { label: 'New Password', key: 'newPw', placeholder: 'At least 8 characters' },
+              { label: 'Confirm New Password', key: 'confirm', placeholder: 'Re-enter new password' },
+            ].map(({ label, key, placeholder }) => (
+              <div key={key} className="space-y-1.5">
+                <Label className="text-stone-600 text-sm font-medium">{label}</Label>
+                <div className="relative">
+                  <Input type={showPw ? 'text' : 'password'} placeholder={placeholder}
+                    value={pwForm[key]} onChange={e => setPwForm({ ...pwForm, [key]: e.target.value })}
+                    className="h-11 bg-stone-50 border-stone-200 focus:border-orange-400 rounded-xl pr-10" />
+                  {key === 'current' && (
+                    <button type="button" onClick={() => setShowPw(!showPw)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-orange-500">
+                      {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <Button onClick={handlePasswordChange} disabled={savingPw || !pwForm.current || !pwForm.newPw || !pwForm.confirm}
+              className="w-full h-11 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white rounded-xl font-semibold shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+              {savingPw ? 'Changing...' : 'Update Password'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

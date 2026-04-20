@@ -1,9 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Navigation from "@/components/Navigation";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useUpgrade } from "@/context/AuthContext";
-import { Lock, Star, ChevronRight, Sparkles, Search, X, Bot, ExternalLink, EyeOff, Eye, Play } from "lucide-react";
+import { API } from "@/App";
+import axios from "axios";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  Lock, Star, ChevronRight, Sparkles, Search, X, Bot,
+  ExternalLink, EyeOff, Eye, Play, Calculator, TrendingUp,
+  Zap, ArrowRight,
+} from "lucide-react";
 
 // ── Feature catalog ───────────────────────────────────────────────────────────
 export const FEATURE_CATALOG = [
@@ -146,6 +153,64 @@ const CHANAKYA_EXAMPLES = {
   },
 };
 
+// ── Calculator tools (matching mobile) ───────────────────────────────────────
+const TOOL_SECTIONS = [
+  {
+    title: "Invest & Grow", emoji: "📈",
+    tools: [
+      { id: "sip",       icon: "📈", title: "SIP Calculator",    sub: "Grow wealth over time",               color: "#10b981", bg: "bg-emerald-50",  to: "/fire" },
+      { id: "planner",   icon: "🥧", title: "Invest X",         sub: "Enter amount, get allocation",        color: "#059669", bg: "bg-emerald-50",  to: "/investment-advisor" },
+      { id: "stock",     icon: "📊", title: "Stock Analyzer",    sub: "Chanakya's take on any stock",        color: "#3b82f6", bg: "bg-blue-50",     to: "/chat" },
+      { id: "gold",      icon: "🥇", title: "Gold Tracker",      sub: "Live gold price & holdings",          color: "#d97706", bg: "bg-amber-50",    to: "/gold" },
+    ],
+  },
+  {
+    title: "Safe & Secure", emoji: "🛡️",
+    tools: [
+      { id: "ppf",       icon: "🛡️", title: "PPF Calculator",   sub: "15-year tax-free compound",           color: "#0d9959", bg: "bg-emerald-50",  to: "/fire" },
+      { id: "fd",        icon: "🔒", title: "FD Calculator",    sub: "Fixed deposit maturity",              color: "#6366f1", bg: "bg-indigo-50",   to: "/fire" },
+      { id: "rd",        icon: "🔄", title: "RD Calculator",    sub: "Recurring deposit maturity",          color: "#0891b2", bg: "bg-cyan-50",     to: "/fire" },
+      { id: "epf",       icon: "🏛️", title: "EPF Calculator",   sub: "Provident fund growth",               color: "#0891b2", bg: "bg-cyan-50",     to: "/fire" },
+    ],
+  },
+  {
+    title: "Tax & Salary", emoji: "🧾",
+    tools: [
+      { id: "salary",    icon: "💵", title: "In-Hand Salary",   sub: "CTC to monthly take-home",            color: "#16b96e", bg: "bg-emerald-50",  to: "/income" },
+      { id: "tax",       icon: "📄", title: "Income Tax",       sub: "Old vs new regime FY 25-26",          color: "#be123c", bg: "bg-rose-50",     to: "/fire" },
+    ],
+  },
+  {
+    title: "Plan & Compare", emoji: "🏠",
+    tools: [
+      { id: "emi-calc",  icon: "🧮", title: "EMI Calculator",   sub: "What will a new loan cost?",          color: "#6366f1", bg: "bg-indigo-50",   to: "/emis" },
+      { id: "buy-rent",  icon: "🏠", title: "Buy vs Rent",      sub: "Is buying always smarter?",           color: "#3b82f6", bg: "bg-blue-50",     to: "/chat" },
+      { id: "fire",      icon: "🔥", title: "FIRE Calculator",  sub: "When can you retire early?",          color: "#f43f5e", bg: "bg-rose-50",     to: "/fire" },
+      { id: "lifetime",  icon: "👛", title: "Lifetime Earnings", sub: "How much will you earn?",             color: "#0891b2", bg: "bg-cyan-50",     to: "/lifetime-earnings" },
+    ],
+  },
+  {
+    title: "Family", emoji: "👨‍👩‍👧",
+    tools: [
+      { id: "event",     icon: "🎊", title: "Event Planner",    sub: "Wedding, party budgets",              color: "#ec4899", bg: "bg-pink-50",     to: "/events" },
+      { id: "gifts",     icon: "🎁", title: "Celebrations",     sub: "Track gifts & occasions",             color: "#ef4444", bg: "bg-red-50",      to: "/gifts" },
+      { id: "children",  icon: "👶", title: "Children",         sub: "Education & milestone costs",         color: "#f472b6", bg: "bg-pink-50",     to: "/children" },
+    ],
+  },
+];
+
+const TOOLS_FLAT = TOOL_SECTIONS.flatMap(s => s.tools);
+
+const TOOL_FILTER_CHIPS = [
+  { id: "all",           label: "All" },
+  { id: "Invest & Grow", label: "Invest & Grow" },
+  { id: "Safe & Secure", label: "Safe & Secure" },
+  { id: "Tax & Salary",  label: "Tax & Salary" },
+  { id: "Plan & Compare",label: "Plan & Compare" },
+  { id: "Family",        label: "Family" },
+];
+
+// ── Feature catalog categories ───────────────────────────────────────────────
 const CATEGORIES = [
   { id: "all",     label: "All",            emoji: "🌟" },
   { id: "savings", label: "Savings",        emoji: "💰" },
@@ -156,12 +221,36 @@ const CATEGORIES = [
   { id: "tools",   label: "Tools",          emoji: "✨" },
 ];
 
+const PIE_COLORS = ["#f97316", "#10b981", "#3b82f6", "#8b5cf6", "#f43f5e", "#eab308", "#0891b2", "#ec4899"];
+
 const ls = {
   get: (k, def = []) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(def)); } catch { return def; } },
   set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
 };
 
-// ── Helper: extract a single hex-like color from a Tailwind gradient class ───
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function fmtAmt(n) {
+  if (n == null || isNaN(n)) return "₹0";
+  if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2)}Cr`;
+  if (n >= 1_00_000) return `₹${(n / 1_00_000).toFixed(1)}L`;
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
+}
+
+function buildMonthPills() {
+  const pills = [];
+  const now = new Date();
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    pills.push({
+      month: d.getMonth() + 1,
+      year: d.getFullYear(),
+      label: d.toLocaleString("en-IN", { month: "short" }) + (d.getFullYear() !== now.getFullYear() ? ` '${String(d.getFullYear()).slice(2)}` : ""),
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+    });
+  }
+  return pills;
+}
+
 function gradientToRgb(colorClass) {
   const map = {
     "from-emerald-400": "52,211,153", "from-blue-400": "96,165,250",
@@ -170,103 +259,844 @@ function gradientToRgb(colorClass) {
     "from-rose-400":    "251,113,133","from-cyan-400":   "34,211,238",
     "from-teal-400":    "45,212,191", "from-sky-400":    "56,189,248",
     "from-indigo-400":  "129,140,248","from-pink-400":   "244,114,182",
-    "from-orange-400":  "251,146,60", "from-emerald-400":"52,211,153",
-    "from-stone-400":   "168,162,158","from-pink-300":   "249,168,212",
-    "from-red-400":     "248,113,113","from-amber-400":  "251,191,36",
-    "from-orange-500":  "249,115,22", "from-blue-400":   "96,165,250",
+    "from-orange-400":  "251,146,60", "from-stone-400":  "168,162,158",
+    "from-pink-300":    "249,168,212","from-red-400":    "248,113,113",
+    "from-amber-400":   "251,191,36", "from-orange-500": "249,115,22",
   };
   const key = colorClass.split(" ")[0];
   return map[key] || "251,146,60";
 }
 
-// ── Live preview widget ───────────────────────────────────────────────────────
-const PREVIEW_FEATURES = FEATURE_CATALOG.filter(f =>
-  ["budget","savings-goals","trips","gold","credit-cards","events","fire","investments","when-to-buy","timeline"].includes(f.id)
-);
-
-function PlaybookLivePreview() {
-  const [idx, setIdx]       = useState(0);
-  const [visible, setVisible] = useState(true);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setVisible(false);
-      setTimeout(() => {
-        setIdx(i => (i + 1) % PREVIEW_FEATURES.length);
-        setVisible(true);
-      }, 300);
-    }, 2800);
-    return () => clearInterval(timer);
-  }, []);
-
-  const feat = PREVIEW_FEATURES[idx];
-  const rgb  = gradientToRgb(feat.color);
-
+// ── Custom Tooltip for PieChart ──────────────────────────────────────────────
+function CustomPieTooltip({ active, payload }) {
+  if (!active || !payload?.[0]) return null;
+  const d = payload[0];
   return (
-    <div className="relative rounded-2xl overflow-hidden shadow-xl border border-white/10"
-      style={{ background: "rgba(0,0,0,0.28)", backdropFilter: "blur(12px)" }}>
-      {/* header */}
-      <div className="flex items-center justify-between px-3.5 pt-3 pb-2 border-b border-white/10">
-        <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Preview
-        </span>
-        <span className="text-[10px] text-white/50 font-medium">Auto-cycling</span>
-      </div>
-
-      {/* card body */}
-      <div className="px-3.5 py-3"
-        style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(6px)", transition: "opacity 0.3s ease, transform 0.3s ease" }}>
-        <div className="flex items-start gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0"
-            style={{ background: `rgba(${rgb},0.35)`, border: `1px solid rgba(${rgb},0.4)` }}>
-            {feat.emoji}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <p className="text-sm font-bold text-white leading-tight">{feat.label}</p>
-              {feat.pro && (
-                <span className="text-[9px] font-bold text-white/60 bg-white/10 px-1.5 py-0.5 rounded-full">Pro</span>
-              )}
-            </div>
-            <p className="text-xs text-white/70 leading-snug">{feat.tagline}</p>
-          </div>
-        </div>
-
-        {/* mini detail from CHANAKYA_EXAMPLES tip */}
-        {CHANAKYA_EXAMPLES[feat.id]?.tip && (
-          <div className="mt-2.5 px-2.5 py-2 rounded-xl bg-white/10 border border-white/10">
-            <p className="text-[10px] text-white/70 leading-relaxed">
-              <span className="text-white/50 font-bold mr-1">💡</span>
-              {CHANAKYA_EXAMPLES[feat.id].tip}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* dots */}
-      <div className="flex items-center justify-center gap-1 pb-3">
-        {PREVIEW_FEATURES.map((_, i) => (
-          <button key={i} onClick={() => { setVisible(false); setTimeout(() => { setIdx(i); setVisible(true); }, 200); }}
-            className="rounded-full transition-all duration-300"
-            style={{ width: i === idx ? 14 : 6, height: 6, background: i === idx ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.25)" }} />
-        ))}
-      </div>
+    <div className="bg-stone-900 text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-lg">
+      {d.name}: {fmtAmt(d.value)}
     </div>
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRENDS TAB COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+function TrendsTab() {
+  const { user } = useAuth();
+  const token = localStorage.getItem("token");
+  const navigate = useNavigate();
+  const ALL_PILLS = useMemo(() => buildMonthPills(), []);
+
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [categories, setCategories] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMonth, setLoadingMonth] = useState(false);
+  const [activePills, setActivePills] = useState(ALL_PILLS);
+
+  const authHeader = useMemo(() => ({
+    headers: { Authorization: `Bearer ${token}` },
+  }), [token]);
+
+  const fetchCategories = useCallback(async () => {
+    const res = await axios.get(`${API}/categories`, authHeader);
+    return res.data?.categories ?? res.data ?? [];
+  }, [authHeader]);
+
+  const fetchExpenses = useCallback(async (month, year) => {
+    const res = await axios.get(`${API}/transactions?month=${month}&year=${year}&type=expense`, authHeader);
+    return res.data?.transactions ?? res.data ?? [];
+  }, [authHeader]);
+
+  // Initial load
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const [cats, txns] = await Promise.all([
+          fetchCategories(),
+          fetchExpenses(ALL_PILLS[0].month, ALL_PILLS[0].year),
+        ]);
+        if (cancelled) return;
+        setCategories(cats);
+        setTransactions(txns);
+
+        // Find which months have data
+        const monthChecks = await Promise.all(
+          ALL_PILLS.map(pill =>
+            fetchExpenses(pill.month, pill.year)
+              .then(t => ({ ...pill, hasData: t.reduce((s, x) => s + (x.amount || 0), 0) > 0 }))
+              .catch(() => ({ ...pill, hasData: false }))
+          )
+        );
+        const withData = monthChecks.filter(p => p.hasData);
+        setActivePills(withData.length > 0 ? withData : [ALL_PILLS[0]]);
+      } catch {}
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+
+  // Month change
+  useEffect(() => {
+    if (!token || loading) return;
+    const pill = activePills[selectedIdx];
+    if (!pill) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingMonth(true);
+      try {
+        const txns = await fetchExpenses(pill.month, pill.year);
+        if (!cancelled) setTransactions(txns);
+      } catch {}
+      finally { if (!cancelled) setLoadingMonth(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedIdx]);
+
+  // Derived data
+  const spendByCategory = useMemo(() => {
+    const map = {};
+    transactions.forEach(t => {
+      const key = t.category_id ?? "__none__";
+      map[key] = (map[key] ?? 0) + (t.amount || 0);
+    });
+    return map;
+  }, [transactions]);
+
+  const categoryRows = useMemo(() => {
+    const catMap = new Map(categories.map(c => [c.id, c]));
+    const rows = [];
+    categories.forEach(cat => {
+      const budget = cat.budget_limit ?? cat.allocated_amount ?? 0;
+      const spent = spendByCategory[cat.id] ?? 0;
+      if (budget > 0 || spent > 0) {
+        rows.push({
+          id: cat.id, name: cat.name, emoji: cat.emoji ?? "",
+          spent, budget,
+          pct: budget > 0 ? Math.round((spent / budget) * 100) : 100,
+          isOver: budget > 0 && spent > budget,
+        });
+      }
+    });
+    rows.sort((a, b) => b.spent - a.spent);
+    return rows;
+  }, [categories, spendByCategory]);
+
+  const totalBudget = useMemo(() => categories.reduce((s, c) => s + (c.budget_limit ?? c.allocated_amount ?? 0), 0), [categories]);
+  const totalSpent = useMemo(() => transactions.reduce((s, t) => s + (t.amount || 0), 0), [transactions]);
+
+  const pieData = useMemo(() =>
+    categoryRows.slice(0, 8).map((r, i) => ({
+      name: r.name, value: r.spent, color: PIE_COLORS[i % PIE_COLORS.length],
+    })),
+  [categoryRows]);
+
+  const topTransactions = useMemo(() =>
+    [...transactions].sort((a, b) => b.amount - a.amount).slice(0, 3),
+  [transactions]);
+
+  const catNameMap = useMemo(() =>
+    Object.fromEntries(categories.map(c => [c.id, c.name])),
+  [categories]);
+
+  // Chanakya's Take insights
+  const insights = useMemo(() => {
+    const items = [];
+    if (totalBudget > 0) {
+      const usedPct = Math.round((totalSpent / totalBudget) * 100);
+      if (usedPct > 100) {
+        items.push({ emoji: "🔴", title: `Over budget by ${fmtAmt(totalSpent - totalBudget)}`, detail: `You've used ${usedPct}% of your total budget. Time to tighten up.`, level: "warn", askQ: `I'm over budget by ₹${totalSpent - totalBudget} this month. How can I cut back?` });
+      } else if (usedPct > 80) {
+        items.push({ emoji: "🟡", title: `${usedPct}% budget used`, detail: `${fmtAmt(totalBudget - totalSpent)} left. Be careful with non-essential spending.`, level: "warn", askQ: `I've used ${usedPct}% of my budget. What should I watch out for?` });
+      } else {
+        items.push({ emoji: "✅", title: `${usedPct}% budget used — on track`, detail: `${fmtAmt(totalBudget - totalSpent)} remaining. You're doing well this month.`, level: "good", askQ: `I'm on track with my budget. What's the best use of my surplus?` });
+      }
+    }
+
+    const overCats = categoryRows.filter(r => r.isOver).slice(0, 3);
+    overCats.forEach(cat => {
+      const over = cat.spent - cat.budget;
+      items.push({
+        emoji: "⚠️", title: `${cat.name}: ${fmtAmt(over)} over budget`,
+        detail: `Spent ${fmtAmt(cat.spent)} against ${fmtAmt(cat.budget)} budget (${cat.pct}%).`,
+        level: "warn", askQ: `I overspent on ${cat.name} by ₹${over}. How can I reduce this next month?`,
+      });
+    });
+
+    const topCat = categoryRows[0];
+    if (topCat && !overCats.find(c => c.id === topCat.id) && topCat.spent > 0) {
+      const pctOfTotal = totalSpent > 0 ? Math.round((topCat.spent / totalSpent) * 100) : 0;
+      items.push({
+        emoji: "📊", title: `${topCat.name} is your top spend (${pctOfTotal}%)`,
+        detail: `${fmtAmt(topCat.spent)} this month. ${pctOfTotal > 30 ? "This one category is eating a big chunk." : "Looks proportionate."}`,
+        level: pctOfTotal > 40 ? "warn" : "info",
+        askQ: `${topCat.name} is ${pctOfTotal}% of my spending. Is that normal?`,
+      });
+    }
+
+    if (topTransactions.length > 0) {
+      const biggest = topTransactions[0];
+      items.push({
+        emoji: "💸", title: `Biggest expense: ${fmtAmt(biggest.amount)}`,
+        detail: `"${biggest.description || "Transaction"}" — ${biggest.category_id ? (catNameMap[biggest.category_id] ?? "") : "uncategorised"}`,
+        level: "info", askQ: `My biggest expense was ₹${biggest.amount} on "${biggest.description}". Was it a good decision?`,
+      });
+    }
+
+    return items;
+  }, [categoryRows, totalBudget, totalSpent, topTransactions, catNameMap]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-3 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-stone-400 font-medium">Loading trends...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Month selector pills */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {activePills.map((pill, idx) => (
+          <button key={pill.key} onClick={() => setSelectedIdx(idx)}
+            className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
+              selectedIdx === idx
+                ? "bg-orange-500 text-white shadow-sm shadow-orange-500/30"
+                : "bg-white border border-stone-200 text-stone-600 hover:border-orange-300"
+            }`}>
+            {pill.label}
+          </button>
+        ))}
+      </div>
+
+      {loadingMonth && (
+        <div className="flex items-center gap-2 text-sm text-stone-400">
+          <div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+          Updating...
+        </div>
+      )}
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 text-center">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1">Budget</p>
+          <p className="text-lg font-extrabold text-stone-800">{fmtAmt(totalBudget)}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 text-center">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1">Spent</p>
+          <p className="text-lg font-extrabold text-orange-500">{fmtAmt(totalSpent)}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 text-center">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1">Remaining</p>
+          <p className={`text-lg font-extrabold ${totalBudget - totalSpent >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+            {totalBudget - totalSpent < 0 ? "-" : ""}{fmtAmt(Math.abs(totalBudget - totalSpent))}
+          </p>
+        </div>
+      </div>
+
+      {/* Pie chart + legend */}
+      {pieData.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+          <p className="text-xs font-bold uppercase tracking-widest text-stone-400 mb-4">Category Breakdown</p>
+          <div className="flex flex-col lg:flex-row items-center gap-6">
+            <div className="w-full max-w-[260px] aspect-square">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius="55%" outerRadius="85%"
+                    paddingAngle={2} dataKey="value" nameKey="name" stroke="none">
+                    {pieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomPieTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 w-full space-y-2">
+              {pieData.map((entry, i) => {
+                const pct = totalSpent > 0 ? Math.round((entry.value / totalSpent) * 100) : 0;
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                    <span className="flex-1 text-sm text-stone-700 font-medium truncate">{entry.name}</span>
+                    <span className="text-sm font-bold text-stone-800">{fmtAmt(entry.value)}</span>
+                    <span className="text-xs text-stone-400 w-10 text-right">{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category bars */}
+      {categoryRows.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5 space-y-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-stone-400 mb-2">Budget vs Actual</p>
+          {categoryRows.slice(0, 8).map((row, i) => (
+            <div key={row.id}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-semibold text-stone-700">{row.emoji} {row.name}</span>
+                <span className={`text-xs font-bold ${row.isOver ? "text-red-500" : "text-stone-500"}`}>
+                  {fmtAmt(row.spent)} / {fmtAmt(row.budget)}
+                </span>
+              </div>
+              <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-700 ${row.isOver ? "bg-red-400" : "bg-orange-400"}`}
+                  style={{ width: `${Math.min(row.pct, 100)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Chanakya's Take */}
+      {insights.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+            <p className="text-xs font-bold uppercase tracking-widest text-stone-500">Chanakya's Take</p>
+          </div>
+          {insights.map((insight, i) => (
+            <div key={i} className={`bg-white rounded-2xl border shadow-sm p-4 ${
+              insight.level === "warn" ? "border-amber-200" : insight.level === "good" ? "border-emerald-200" : "border-stone-100"
+            }`}>
+              <div className="flex items-start gap-3">
+                <span className="text-xl shrink-0 mt-0.5">{insight.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-stone-800 mb-0.5">{insight.title}</p>
+                  <p className="text-xs text-stone-500 leading-relaxed">{insight.detail}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <Link to={`/chatbot`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900 text-white text-[11px] font-bold hover:bg-stone-800 transition-colors">
+                  <Bot size={12} /> Ask Chanakya
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {pieData.length === 0 && !loading && (
+        <div className="text-center py-12 bg-white rounded-2xl border border-stone-100 shadow-sm">
+          <p className="text-3xl mb-3">📊</p>
+          <p className="text-stone-500 font-medium mb-1">No spending data for this month</p>
+          <p className="text-xs text-stone-400">Add transactions in Budget Manager to see trends here.</p>
+          <Link to="/budget" className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-xl hover:bg-orange-600 transition-colors">
+            Open Budget <ArrowRight size={14} />
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTIONS TAB COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+function ActionsTab() {
+  const { user } = useAuth();
+  const token = localStorage.getItem("token");
+  const navigate = useNavigate();
+
+  const [scoreData, setScoreData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get(`${API}/financial-score`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!cancelled) setScoreData(res.data);
+      } catch {}
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const actions = useMemo(() => {
+    if (!scoreData?.amounts) return [];
+    const items = [];
+    const income = scoreData.amounts.monthly_income || 0;
+    const expenses = scoreData.amounts.monthly_expenses || 0;
+    const emiTotal = scoreData.amounts.total_emi || 0;
+    const netSavings = scoreData.amounts.net_savings || 0;
+    const savingsRate = scoreData.details?.savings_rate ?? scoreData.savings_ratio ?? 0;
+    const emiRatio = scoreData.details?.emi_ratio ?? scoreData.emi_ratio ?? 0;
+    const freeCash = Math.max(0, income - expenses - emiTotal);
+
+    if (income <= 0) {
+      items.push({
+        emoji: "📝", trend: "No income data yet",
+        action: "Add your income to get personalized actions.",
+        detail: "Go to Income Tracker and add your salary. Chanakya needs this to give you real advice.",
+        to: "/income", btnLabel: "Add income", level: "urgent", color: "#ef4444",
+      });
+      return items;
+    }
+
+    // Emergency fund check
+    const emergencyMonths = expenses > 0 ? netSavings / expenses : 0;
+    if (emergencyMonths < 3) {
+      const gap = Math.max(0, expenses * 6 - netSavings);
+      items.push({
+        emoji: "🚨", trend: `Emergency fund: ${emergencyMonths.toFixed(1)} months`,
+        action: "You need at least 6 months of expenses saved.",
+        detail: `Gap: ${fmtAmt(gap)}. A ${fmtAmt(Math.round(gap / 6))}/mo RD closes this in 6 months.`,
+        to: "/savings-goals", btnLabel: "Set a goal", level: "urgent", color: "#ef4444",
+      });
+    }
+
+    // EMI burden
+    if (emiRatio > 40) {
+      items.push({
+        emoji: "💳", trend: `EMI burden: ${Math.round(emiRatio)}% of income`,
+        action: `Safe limit is 40%. You're at ${Math.round(emiRatio)}%.`,
+        detail: `Prepay your highest-rate loan. Even ${fmtAmt(Math.round(freeCash))} extra this month reduces total interest.`,
+        to: "/emis", btnLabel: "Review EMIs", level: "urgent", color: "#ef4444",
+      });
+    } else if (emiRatio > 0) {
+      items.push({
+        emoji: "✅", trend: `EMI burden: ${Math.round(emiRatio)}% — within safe limits`,
+        action: "Your loan payments are manageable.",
+        detail: "Consider prepaying to save on interest, or keep investing the surplus.",
+        to: "/emis", btnLabel: "View EMIs", level: "opportunity", color: "#10b981",
+      });
+    }
+
+    // Savings rate
+    if (savingsRate < 10) {
+      items.push({
+        emoji: "📉", trend: `Savings rate: ${Math.round(savingsRate)}%`,
+        action: `You need at least 20% to build wealth. You're at ${Math.round(savingsRate)}%.`,
+        detail: `Start with the 50/30/20 rule. Even saving ${fmtAmt(Math.round(income * 0.05))} more per month makes a difference.`,
+        to: "/fire", btnLabel: "Start a SIP", level: "important", color: "#f59e0b",
+      });
+    } else if (savingsRate < 20) {
+      items.push({
+        emoji: "⏳", trend: `Savings rate: ${Math.round(savingsRate)}% — building`,
+        action: `Push from ${Math.round(savingsRate)}% to 20% — that's ${fmtAmt(Math.round(income * 0.2 - (income - expenses)))} more per month.`,
+        detail: "Review your top spending category and cut 10-15% from it.",
+        to: "/budget", btnLabel: "Review spending", level: "important", color: "#f59e0b",
+      });
+    } else {
+      items.push({
+        emoji: "💪", trend: `Savings rate: ${Math.round(savingsRate)}% — strong`,
+        action: `You're saving ${fmtAmt(income - expenses)}/mo. Invest it.`,
+        detail: `A SIP of ${fmtAmt(Math.round((income - expenses) * 0.7))} at 12% grows to ${fmtAmt(Math.round((income - expenses) * 0.7 * 12 * 10 * 1.8))} in 10 years.`,
+        to: "/fire", btnLabel: "Calculate SIP", level: "opportunity", color: "#10b981",
+      });
+    }
+
+    // Free cash opportunity
+    if (freeCash > 5000) {
+      items.push({
+        emoji: "💰", trend: `Free cash: ${fmtAmt(freeCash)}/month`,
+        action: "This money is sitting idle. Put it to work.",
+        detail: "Use the Investment Advisor to split this across safe + growth instruments based on your goals.",
+        to: "/investment-advisor", btnLabel: "Plan investment", level: "opportunity", color: "#3b82f6",
+      });
+    }
+
+    // Insurance check
+    if (emergencyMonths < 6) {
+      items.push({
+        emoji: "🛡️", trend: "No insurance data found",
+        action: "Do you have health + term insurance?",
+        detail: "One medical emergency can wipe out years of savings. A 10L health cover costs around 500/mo.",
+        to: "/chatbot", btnLabel: "Ask Chanakya", level: "important", color: "#f59e0b",
+      });
+    }
+
+    const levelOrder = { urgent: 0, important: 1, opportunity: 2 };
+    items.sort((a, b) => levelOrder[a.level] - levelOrder[b.level]);
+    return items;
+  }, [scoreData]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-3 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-stone-400 font-medium">Analyzing your finances...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Score summary bar */}
+      {scoreData && scoreData.score != null && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 flex items-center gap-4">
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-extrabold text-white shrink-0 ${
+            scoreData.score >= 70 ? "bg-emerald-500" : scoreData.score >= 40 ? "bg-amber-500" : "bg-red-500"
+          }`}>
+            {scoreData.score}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-stone-800">
+              Financial Health: {scoreData.score >= 70 ? "Strong" : scoreData.score >= 40 ? "Building" : "Needs Work"}
+            </p>
+            <p className="text-xs text-stone-400 mt-0.5">
+              Fundamentals {scoreData.breakdown?.fundamentals}/30 · Discipline {scoreData.breakdown?.discipline}/35 · Momentum {scoreData.breakdown?.momentum}/35
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Section header */}
+      <div className="flex items-center gap-2">
+        <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+        <p className="text-xs font-bold uppercase tracking-widest text-stone-500">Your Actions</p>
+        <p className="flex-1 text-xs text-stone-400">Based on your spending trends</p>
+      </div>
+
+      {/* Action cards */}
+      {actions.map((a, i) => (
+        <div key={i} className="bg-white rounded-2xl border shadow-sm p-5 relative overflow-hidden"
+          style={{ borderColor: a.color + "30", borderLeftWidth: "3px", borderLeftColor: a.color }}>
+          {/* Trend signal */}
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">{a.emoji}</span>
+            <span className="flex-1 text-xs font-bold" style={{ color: a.color }}>{a.trend}</span>
+            <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: a.color + "15", color: a.color }}>
+              {a.level}
+            </span>
+          </div>
+
+          <p className="text-sm font-bold text-stone-800 mb-1">{a.action}</p>
+          <p className="text-xs text-stone-500 leading-relaxed mb-4">{a.detail}</p>
+
+          <div className="flex items-center gap-2">
+            <Link to={a.to}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-colors hover:opacity-90"
+              style={{ backgroundColor: a.color }}>
+              {a.btnLabel}
+            </Link>
+            <Link to="/chatbot"
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-stone-900 text-white text-xs font-bold hover:bg-stone-800 transition-colors shrink-0">
+              <Bot size={12} /> Ask Chanakya
+            </Link>
+          </div>
+        </div>
+      ))}
+
+      {actions.length === 0 && !loading && (
+        <div className="text-center py-12 bg-white rounded-2xl border border-stone-100 shadow-sm">
+          <p className="text-3xl mb-3">📝</p>
+          <p className="text-stone-500 font-medium mb-1">Add income data to see personalized actions</p>
+          <Link to="/income" className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-xl hover:bg-orange-600 transition-colors">
+            Add Income <ArrowRight size={14} />
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TOOLS TAB COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+function ToolsTab({ onOpenAiPanel }) {
+  const { user } = useAuth();
+  const isPro = !!user?.is_pro;
+  const { triggerUpgrade } = useUpgrade();
+  const navigate = useNavigate();
+
+  const [toolFilter, setToolFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [featureCategory, setFeatureCategory] = useState("all");
+  const [pinned, setPinned] = useState(() => ls.get("bm_pinned_features"));
+  const [hidden, setHidden] = useState(() => ls.get("bm_hidden_features"));
+  const [pendingHide, setPendingHide] = useState(null);
+
+  useEffect(() => { ls.set("bm_pinned_features", pinned); window.dispatchEvent(new Event("bm:features-updated")); }, [pinned]);
+  useEffect(() => { ls.set("bm_hidden_features", hidden); window.dispatchEvent(new Event("bm:features-updated")); }, [hidden]);
+
+  const togglePin = (id) => setPinned(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const confirmHide = (id) => {
+    if (hidden.includes(id)) {
+      setHidden(h => h.filter(x => x !== id));
+    } else {
+      setPendingHide(id);
+    }
+  };
+  const doHide = () => {
+    if (!pendingHide) return;
+    setHidden(h => [...h, pendingHide]);
+    setPinned(p => p.filter(x => x !== pendingHide));
+    setPendingHide(null);
+  };
+
+  // Filter calculator tools
+  const filteredTools = toolFilter === "all"
+    ? TOOLS_FLAT
+    : TOOL_SECTIONS.find(s => s.title === toolFilter)?.tools || [];
+
+  // Filter feature catalog
+  const visibleFeatures = FEATURE_CATALOG.filter(f => {
+    if (featureCategory !== "all" && f.category !== featureCategory) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return f.label.toLowerCase().includes(q) || f.tagline.toLowerCase().includes(q) || f.desc.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  const pinnedFeats = FEATURE_CATALOG.filter(f => pinned.includes(f.id));
+
+  return (
+    <div className="space-y-6">
+      {/* Calculator tools section */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+          <p className="text-xs font-bold uppercase tracking-widest text-stone-500">Calculators</p>
+          <p className="flex-1 text-xs text-stone-400">Plug in custom numbers</p>
+        </div>
+
+        {/* Filter chips */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-4">
+          {TOOL_FILTER_CHIPS.map(chip => (
+            <button key={chip.id} onClick={() => setToolFilter(chip.id)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
+                toolFilter === chip.id
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "bg-white border border-stone-200 text-stone-600 hover:border-orange-300"
+              }`}>
+              {chip.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Quick access row */}
+        {toolFilter === "all" && (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <Link to="/emis" className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 hover:bg-indigo-100 transition-colors">
+              <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-lg">💳</div>
+              <div>
+                <p className="text-sm font-bold text-indigo-900">EMIs</p>
+                <p className="text-[10px] text-indigo-500 font-medium">Manage loans</p>
+              </div>
+            </Link>
+            <Link to="/investments" className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 hover:bg-emerald-100 transition-colors">
+              <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-lg">📊</div>
+              <div>
+                <p className="text-sm font-bold text-emerald-900">Investments</p>
+                <p className="text-[10px] text-emerald-500 font-medium">Portfolio</p>
+              </div>
+            </Link>
+          </div>
+        )}
+
+        {/* Calculator grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {filteredTools.map(tool => (
+            <Link key={tool.id} to={tool.to}
+              className={`${tool.bg} border border-stone-100 rounded-2xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all group`}>
+              <div className="text-2xl mb-2">{tool.icon}</div>
+              <p className="text-sm font-bold text-stone-800 group-hover:text-stone-900">{tool.title}</p>
+              <p className="text-[11px] text-stone-500 mt-0.5 leading-snug">{tool.sub}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Feature catalog section */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+          <p className="text-xs font-bold uppercase tracking-widest text-stone-500">All Features</p>
+          <p className="flex-1 text-xs text-stone-400">{FEATURE_CATALOG.length} features</p>
+        </div>
+
+        {/* Search */}
+        <div className="relative max-w-md mb-3">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search features..."
+            className="w-full pl-8 pr-4 py-2 rounded-xl bg-white border border-stone-200 text-sm text-stone-700 placeholder-stone-400 outline-none focus:border-orange-300 transition-colors" />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Category pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-4">
+          {CATEGORIES.map(cat => (
+            <button key={cat.id} onClick={() => setFeatureCategory(cat.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
+                featureCategory === cat.id
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "bg-white border border-stone-200 text-stone-600 hover:border-orange-300"
+              }`}>
+              {cat.emoji} {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Pinned row */}
+        {!search && featureCategory === "all" && pinnedFeats.length > 0 && (
+          <div className="mb-4 p-3 bg-white border border-orange-100 rounded-2xl shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Pinned</p>
+            <div className="flex flex-wrap gap-2">
+              {pinnedFeats.map(f => (
+                <Link key={f.id} to={f.to}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-xl text-xs font-semibold text-orange-700 hover:bg-orange-100 transition-colors">
+                  {f.emoji} {f.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Feature grid */}
+        {visibleFeatures.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-3xl mb-3">🔍</p>
+            <p className="text-stone-500 font-medium">No features match "{search}"</p>
+            <button onClick={() => setSearch("")} className="mt-3 text-orange-500 text-sm font-semibold hover:underline">Clear search</button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {visibleFeatures.map((feat, i) => {
+            const isPinned = pinned.includes(feat.id);
+            const isHidden = hidden.includes(feat.id);
+            const locked = feat.pro && !isPro;
+            const rgb = gradientToRgb(feat.color);
+            const catLabel = CATEGORIES.find(c => c.id === feat.category)?.label || feat.category;
+
+            return (
+              <div key={feat.id}
+                className="rounded-2xl border border-stone-200 flex flex-col overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5 shadow-sm relative"
+                style={{ background: `linear-gradient(145deg, rgba(${rgb},0.03) 0%, #ffffff 40%, #fdfaf7 100%)` }}>
+                <div className={`h-1 bg-gradient-to-r ${feat.color}`} />
+                <div className="p-3.5 flex flex-col gap-2 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${feat.color} flex items-center justify-center text-lg shrink-0`}>
+                      {feat.emoji}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                        style={{ background: `rgba(${rgb},0.12)`, color: `rgb(${rgb})` }}>
+                        {catLabel}
+                      </span>
+                      {locked && (
+                        <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-500 rounded-full">
+                          <Lock size={8} /> Pro
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-stone-800 text-sm leading-tight">{feat.label}</p>
+                    <p className="text-xs text-orange-600 font-bold mt-0.5">{feat.tagline}</p>
+                  </div>
+                  <p className="text-[11px] text-stone-500 leading-relaxed flex-1">{feat.desc}</p>
+                  <div className="flex items-center gap-1.5 pt-1.5 border-t border-stone-100">
+                    <button onClick={() => onOpenAiPanel(feat.id)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 text-orange-700 text-[10px] font-semibold hover:bg-orange-100 transition-colors">
+                      <Bot size={10} /> Ask Chanakya
+                    </button>
+                    {locked ? (
+                      <button onClick={triggerUpgrade}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-violet-50 text-violet-600 text-[10px] font-semibold hover:bg-violet-100 transition-colors ml-auto">
+                        <Lock size={10} /> Unlock
+                      </button>
+                    ) : (
+                      <Link to={feat.to}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-stone-100 text-stone-600 text-[10px] font-semibold hover:bg-stone-200 transition-colors ml-auto">
+                        Open <ExternalLink size={9} />
+                      </Link>
+                    )}
+                    <button onClick={() => togglePin(feat.id)} disabled={isHidden}
+                      className={`hidden sm:inline-flex p-1 rounded-lg transition-all disabled:opacity-30 ${
+                        isPinned ? "bg-orange-100 text-orange-600" : "bg-stone-100 text-stone-400 hover:bg-orange-50 hover:text-orange-500"
+                      }`}>
+                      <Star size={11} className={isPinned ? "fill-orange-500 text-orange-500" : ""} />
+                    </button>
+                    <button onClick={() => confirmHide(feat.id)}
+                      className={`hidden sm:inline-flex p-1 rounded-lg transition-all ${
+                        isHidden ? "bg-red-50 text-red-400 hover:bg-orange-50 hover:text-orange-500" : "bg-stone-100 text-stone-400 hover:bg-stone-200"
+                      }`}>
+                      {isHidden ? <Eye size={11} /> : <EyeOff size={11} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Hide confirmation modal */}
+      {pendingHide && (() => {
+        const feat = FEATURE_CATALOG.find(f => f.id === pendingHide);
+        return (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${feat?.color || "from-stone-400 to-stone-500"} flex items-center justify-center text-xl shrink-0`}>
+                  {feat?.emoji}
+                </div>
+                <div>
+                  <p className="font-bold text-stone-900 text-base">{feat?.label}</p>
+                  <p className="text-xs text-stone-500">{feat?.tagline}</p>
+                </div>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                <p className="text-sm font-semibold text-amber-800 mb-1">Hide from nav bar?</p>
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  This feature will no longer appear in the More menu. You can restore it anytime from here.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setPendingHide(null)}
+                  className="flex-1 py-2.5 border border-stone-200 rounded-xl text-sm font-semibold text-stone-600 hover:bg-stone-50 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={doHide}
+                  className="flex-1 py-2.5 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-1.5">
+                  <EyeOff size={14} /> Hide from Nav
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN PLAYBOOK COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
 export default function Playbook() {
   const { user } = useAuth();
   const isPro = !!user?.is_pro;
   const { triggerUpgrade } = useUpgrade();
 
-  const [pinned, setPinned]     = useState(() => ls.get("bm_pinned_features"));
-  const [hidden, setHidden]     = useState(() => ls.get("bm_hidden_features"));
-  const [pendingHide, setPendingHide] = useState(null); // feature id waiting for hide confirm
-  const [search, setSearch]     = useState("");
-  const [category, setCategory] = useState("all");
-  const [aiPanel, setAiPanel] = useState(null); // feature id
-  const searchRef = useRef(null);
+  const [activeTab, setActiveTab] = useState("tools");
+  const [aiPanel, setAiPanel] = useState(null);
 
   // Inject keyframes once
   useEffect(() => {
@@ -279,229 +1109,63 @@ export default function Playbook() {
           from { opacity: 0; transform: translateY(16px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        @keyframes bm-orb-float {
-          0%, 100% { transform: translateY(0px); }
-          50%       { transform: translateY(-4px); }
-        }
       `;
       document.head.appendChild(style);
     }
   }, []);
 
-  useEffect(() => { ls.set("bm_pinned_features", pinned); window.dispatchEvent(new Event("bm:features-updated")); }, [pinned]);
-  useEffect(() => { ls.set("bm_hidden_features", hidden); window.dispatchEvent(new Event("bm:features-updated")); }, [hidden]);
+  const aiFeature = aiPanel ? FEATURE_CATALOG.find(f => f.id === aiPanel) : null;
+  const aiContent = aiPanel ? CHANAKYA_EXAMPLES[aiPanel] : null;
 
-  const togglePin  = (id) => setPinned(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const confirmHide = (id) => {
-    // If already hidden, restore immediately (no confirmation needed)
-    if (hidden.includes(id)) {
-      setHidden(h => h.filter(x => x !== id));
-    } else {
-      setPendingHide(id);
-    }
-  };
-
-  const doHide = () => {
-    if (!pendingHide) return;
-    setHidden(h => [...h, pendingHide]);
-    setPinned(p => p.filter(x => x !== pendingHide));
-    setPendingHide(null);
-  };
-
-  const visible = FEATURE_CATALOG.filter(f => {
-    if (category !== "all" && f.category !== category) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return f.label.toLowerCase().includes(q) || f.tagline.toLowerCase().includes(q) || f.desc.toLowerCase().includes(q);
-    }
-    return true;
-  });
-
-  const pinnedFeats = FEATURE_CATALOG.filter(f => pinned.includes(f.id));
-  const aiFeature   = aiPanel ? FEATURE_CATALOG.find(f => f.id === aiPanel) : null;
-  const aiContent   = aiPanel ? CHANAKYA_EXAMPLES[aiPanel] : null;
+  const TABS = [
+    { id: "tools",   label: "Tools",   icon: Calculator },
+    { id: "trends",  label: "Trends",  icon: TrendingUp },
+    { id: "actions", label: "Actions", icon: Zap },
+  ];
 
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(160deg, #fef9f4 0%, #fdf6ee 50%, #faf4ef 100%)" }}>
       <Navigation />
 
       {/* Hero */}
-      <div className="relative overflow-hidden px-4 pt-8 pb-6 lg:pt-12 lg:pb-8"
+      <div className="relative overflow-hidden px-4 pt-8 pb-4 lg:pt-12 lg:pb-6"
         style={{ background: "linear-gradient(135deg, #c2410c 0%, #ea580c 40%, #f97316 70%, #fb923c 100%)" }}>
         <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-8 w-32 h-32 bg-yellow-400/20 rounded-full blur-2xl pointer-events-none" />
-        <div className="max-w-4xl mx-auto relative z-10 lg:grid lg:grid-cols-2 lg:gap-8 lg:items-center">
-          {/* Left — title + search */}
-          <div>
-            <p className="text-orange-200 text-xs font-bold uppercase tracking-widest mb-1">📖 Budget Mantra Playbook</p>
-            <h1 className="text-2xl lg:text-3xl font-extrabold text-white font-['Outfit'] mb-1.5">
-              Discover every feature.
-            </h1>
-            <p className="text-orange-100 text-sm max-w-lg leading-relaxed">
-              {FEATURE_CATALOG.length} features — pin to quick access, hide from nav to keep it clean. Ask Chanakya what anything does.
-              {hidden.length > 0 && <span className="ml-1 text-orange-300 font-semibold">{hidden.length} hidden from nav.</span>}
-            </p>
+        <div className="max-w-6xl mx-auto relative z-10">
+          <p className="text-orange-200 text-xs font-bold uppercase tracking-widest mb-1">Insights</p>
+          <h1 className="text-2xl lg:text-3xl font-extrabold text-white font-['Outfit'] mb-1">
+            Your money · trends · tools
+          </h1>
+          <p className="text-orange-100 text-sm max-w-lg leading-relaxed">
+            AI-powered insights based on your actual spending data. Track trends, take action, use calculators.
+          </p>
 
-            {/* Search */}
-            <div className="mt-4 relative max-w-md">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-orange-300 pointer-events-none" />
-              <input
-                ref={searchRef}
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search features…"
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white/20 border border-white/30 text-white placeholder-orange-200 text-sm font-medium outline-none focus:bg-white/30 transition-colors"
-              />
-              {search && (
-                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-200 hover:text-white">
-                  <X size={14} />
+          {/* Tab switcher */}
+          <div className="mt-4 flex items-center gap-1 bg-white/15 rounded-xl p-1 max-w-sm">
+            {TABS.map(tab => {
+              const active = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                    active
+                      ? "bg-white text-orange-600 shadow-sm"
+                      : "text-white/70 hover:text-white hover:bg-white/10"
+                  }`}>
+                  <Icon size={15} />
+                  {tab.label}
                 </button>
-              )}
-            </div>
-          </div>
-
-          {/* Right — live preview (desktop only) */}
-          <div className="hidden lg:block">
-            <PlaybookLivePreview />
+              );
+            })}
           </div>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-6 pb-28 lg:pb-10">
-
-        {/* Category pills + hide toggle */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-5">
-          {CATEGORIES.map(cat => (
-            <button key={cat.id} onClick={() => setCategory(cat.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all shrink-0 ${
-                category === cat.id
-                  ? "bg-orange-500 text-white shadow-sm shadow-orange-500/30"
-                  : "bg-white border border-stone-200 text-stone-600 hover:border-orange-300 hover:text-orange-600 shadow-sm"
-              }`}>
-              {cat.emoji} {cat.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Pinned row */}
-        {!search && category === "all" && pinnedFeats.length > 0 && (
-          <div className="mb-6 p-4 bg-white border border-orange-100 rounded-2xl shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2.5">⭐ Pinned — shows at top of More menu</p>
-            <div className="flex flex-wrap gap-2">
-              {pinnedFeats.map(f => (
-                <Link key={f.id} to={f.to}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-xl text-sm font-semibold text-orange-700 hover:bg-orange-100 transition-colors">
-                  {f.emoji} {f.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-
-        {/* No results */}
-        {visible.length === 0 && (
-          <div className="text-center py-16">
-            <p className="text-4xl mb-3">🔍</p>
-            <p className="text-stone-500 font-medium">No features match "{search}"</p>
-            <button onClick={() => setSearch("")} className="mt-3 text-orange-500 text-sm font-semibold hover:underline">Clear search</button>
-          </div>
-        )}
-
-        {/* Feature grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {visible.map((feat, i) => {
-            const isPinned  = pinned.includes(feat.id);
-            const isHidden  = hidden.includes(feat.id);
-            const locked    = feat.pro && !isPro;
-            const rgb       = gradientToRgb(feat.color);
-            const catLabel  = CATEGORIES.find(c => c.id === feat.category)?.label || feat.category;
-
-            return (
-              <div key={feat.id}
-                className="rounded-2xl border border-stone-200 flex flex-col overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5 shadow-sm relative"
-                style={{
-                  background: `linear-gradient(145deg, rgba(${rgb},0.03) 0%, #ffffff 40%, #fdfaf7 100%)`,
-                  animationDelay: `${i * 40}ms`,
-                  animation: "bm-fade-up 0.4s ease both",
-                }}>
-
-                {/* Colour accent bar */}
-                <div className={`h-1 bg-gradient-to-r ${feat.color}`} />
-
-                <div className="p-4 flex flex-col gap-3 flex-1">
-                  {/* Top row */}
-                  <div className="flex items-start justify-between gap-2">
-                    {/* Larger emoji icon with drop-shadow */}
-                    <div
-                      className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feat.color} flex items-center justify-center text-2xl shrink-0`}
-                      style={{
-                        filter: `drop-shadow(0 4px 8px rgba(${rgb},0.35))`,
-                        animation: `bm-orb-float ${2.5 + i * 0.15}s ease-in-out infinite`,
-                        animationDelay: feat.anim,
-                      }}>
-                      {feat.emoji}
-                    </div>
-
-                    {/* Top-right: category pill + lock */}
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <span
-                        className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                        style={{ background: `rgba(${rgb},0.12)`, color: `rgb(${rgb})` }}>
-                        {catLabel}
-                      </span>
-                      {locked && (
-                        <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-500 rounded-full">
-                          <Lock size={8} /> Pro
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Text */}
-                  <div>
-                    <p className="font-bold text-stone-800 text-sm leading-tight">{feat.label}</p>
-                    <p className="text-sm text-orange-600 font-bold mt-0.5 leading-tight">{feat.tagline}</p>
-                  </div>
-                  <p className="text-xs text-stone-500 leading-relaxed flex-1">{feat.desc}</p>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1.5 pt-1 border-t border-stone-100">
-                    <button onClick={() => setAiPanel(feat.id)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-orange-50 text-orange-700 text-[11px] font-semibold hover:bg-orange-100 transition-colors">
-                      <Bot size={11} /> Ask Chanakya
-                    </button>
-                    {locked ? (
-                      <button onClick={triggerUpgrade}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-violet-50 text-violet-600 text-[11px] font-semibold hover:bg-violet-100 transition-colors ml-auto">
-                        <Lock size={11} /> Unlock
-                      </button>
-                    ) : (
-                      <Link to={feat.to}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-stone-100 text-stone-600 text-[11px] font-semibold hover:bg-stone-200 transition-colors ml-auto">
-                        Open <ExternalLink size={10} />
-                      </Link>
-                    )}
-                    <button onClick={() => togglePin(feat.id)} disabled={isHidden}
-                      className={`hidden sm:inline-flex p-1.5 rounded-xl transition-all disabled:opacity-30 ${
-                        isPinned ? "bg-orange-100 text-orange-600" : "bg-stone-100 text-stone-400 hover:bg-orange-50 hover:text-orange-500"
-                      }`} title={isPinned ? "Unpin from More menu" : "Pin to More menu"}>
-                      <Star size={13} className={isPinned ? "fill-orange-500 text-orange-500" : ""} />
-                    </button>
-                    <button onClick={() => confirmHide(feat.id)}
-                      className={`hidden sm:inline-flex p-1.5 rounded-xl transition-all ${
-                        isHidden ? "bg-red-50 text-red-400 hover:bg-orange-50 hover:text-orange-500" : "bg-stone-100 text-stone-400 hover:bg-stone-200 hover:text-stone-600"
-                      }`} title={isHidden ? "Hidden from nav — click to restore" : "Visible in nav — click to hide"}>
-                      {isHidden ? <Eye size={13} /> : <EyeOff size={13} />}
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            );
-          })}
-        </div>
-
+        {activeTab === "tools" && <ToolsTab onOpenAiPanel={setAiPanel} />}
+        {activeTab === "trends" && <TrendsTab />}
+        {activeTab === "actions" && <ActionsTab />}
       </div>
 
       {/* Ask Chanakya Panel */}
@@ -509,8 +1173,6 @@ export default function Playbook() {
         <>
           <div className="fixed inset-0 z-[300] bg-black/40 backdrop-blur-sm" onClick={() => setAiPanel(null)} />
           <div className="fixed inset-x-0 bottom-0 z-[301] lg:inset-auto lg:right-6 lg:bottom-6 lg:w-[400px] bg-white rounded-t-3xl lg:rounded-3xl shadow-2xl flex flex-col max-h-[80vh] lg:max-h-[85vh] overflow-hidden">
-
-            {/* Panel header */}
             <div className="relative overflow-hidden rounded-t-3xl lg:rounded-t-3xl shrink-0"
               style={{ background: "linear-gradient(135deg, #c2410c, #ea580c, #f97316)" }}>
               <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
@@ -529,23 +1191,15 @@ export default function Playbook() {
                 </button>
               </div>
             </div>
-
-            {/* Panel content */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-
-              {/* What it does */}
               <div className="bg-stone-50 rounded-2xl p-4">
                 <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">What it does</p>
                 <p className="text-sm text-stone-700 leading-relaxed">{aiContent.what}</p>
               </div>
-
-              {/* Example */}
               <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
-                <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1.5">📖 Real example</p>
+                <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1.5">Real example</p>
                 <p className="text-sm text-stone-700 leading-relaxed">{aiContent.example}</p>
               </div>
-
-              {/* Tip */}
               <div className="flex gap-3 bg-amber-50 border border-amber-100 rounded-2xl p-4">
                 <span className="text-xl shrink-0">💡</span>
                 <div>
@@ -554,8 +1208,6 @@ export default function Playbook() {
                 </div>
               </div>
             </div>
-
-            {/* Panel footer */}
             <div className="shrink-0 px-5 pb-6 pt-3 border-t border-stone-100">
               {(aiFeature.pro && !isPro) ? (
                 <button onClick={() => { setAiPanel(null); triggerUpgrade(); }}
@@ -574,42 +1226,6 @@ export default function Playbook() {
           </div>
         </>
       )}
-
-      {/* Hide confirmation modal */}
-      {pendingHide && (() => {
-        const feat = FEATURE_CATALOG.find(f => f.id === pendingHide);
-        return (
-          <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${feat?.color || 'from-stone-400 to-stone-500'} flex items-center justify-center text-xl shrink-0`}>
-                  {feat?.emoji}
-                </div>
-                <div>
-                  <p className="font-bold text-stone-900 text-base">{feat?.label}</p>
-                  <p className="text-xs text-stone-500">{feat?.tagline}</p>
-                </div>
-              </div>
-              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
-                <p className="text-sm font-semibold text-amber-800 mb-1">Hide from nav bar?</p>
-                <p className="text-xs text-amber-700 leading-relaxed">
-                  This feature will no longer appear in the More menu. You can restore it anytime from Playbook.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setPendingHide(null)}
-                  className="flex-1 py-2.5 border border-stone-200 rounded-xl text-sm font-semibold text-stone-600 hover:bg-stone-50 transition-colors">
-                  Cancel
-                </button>
-                <button onClick={doHide}
-                  className="flex-1 py-2.5 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-1.5">
-                  <EyeOff size={14} /> Hide from Nav
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }

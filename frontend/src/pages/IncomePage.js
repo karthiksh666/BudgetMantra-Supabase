@@ -41,8 +41,27 @@ const EMPTY_FORM = {
   is_recurring: false,
 };
 
+// For a given YYYY-MM-DD and salary_day, return the YYYY-MM label of the cycle
+// the entry belongs to. Cycle runs salary_day..(salary_day-1 next month); we
+// label it by the month in which the cycle ENDS (where most days fall).
+function cycleMonthKey(isoDate, salaryDay) {
+  if (!isoDate) return "Unknown";
+  if (!salaryDay) return isoDate.slice(0, 7);
+  const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number);
+  const sd = Math.max(1, Math.min(28, Number(salaryDay)));
+  // If day >= salary_day → cycle starts this month, ends next month → label = next month
+  // Else → cycle started last month, ends this month → label = this month
+  let ly = y, lm = m;
+  if (d >= sd) {
+    lm = m + 1;
+    if (lm > 12) { lm = 1; ly = y + 1; }
+  }
+  return `${ly}-${String(lm).padStart(2, "0")}`;
+}
+
 export default function IncomePage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const salaryDay = user?.salary_day;
   const headers = { Authorization: `Bearer ${token}` };
 
   const fetchIncome = useCallback(async () => {
@@ -154,12 +173,16 @@ export default function IncomePage() {
   const totalThisMonth = (summary?.total || 0) + (summary?.paycheck_salary || 0);
   const byType         = summary?.by_type || {};
 
-  // Filter entries by selected year
-  const yearEntries = entries.filter(e => e.date?.startsWith(String(effectiveYear)));
+  // Filter entries by selected year (by the cycle-label year, so a Mar 27
+  // entry labeled as April stays grouped with the other April cycle rows).
+  const yearEntries = entries.filter(e => {
+    const key = cycleMonthKey(e.date, salaryDay);
+    return key.startsWith(String(effectiveYear));
+  });
 
-  // Group entries by month
+  // Group entries by salary cycle (labeled by the month the cycle ends in).
   const grouped = yearEntries.reduce((acc, e) => {
-    const key = e.date?.slice(0, 7) || "Unknown";
+    const key = cycleMonthKey(e.date, salaryDay) || "Unknown";
     if (!acc[key]) acc[key] = [];
     acc[key].push(e);
     return acc;

@@ -104,10 +104,57 @@ const BarTooltip = ({ active, payload, label }) => {
   );
 };
 
+// ── XP / Level system ─────────────────────────────────────────────────────────
+const XP_LEVELS = [
+  { level: 1, name: "Budget Padawan",   minXP: 0    },
+  { level: 2, name: "Bachat Warrior",   minXP: 100  },
+  { level: 3, name: "Paisa Samajhdar",  minXP: 300  },
+  { level: 4, name: "Nivesh Ninja",     minXP: 600  },
+  { level: 5, name: "Dhan Shilpi",      minXP: 1000 },
+];
+const getXPLevel = (xp) => {
+  for (let i = XP_LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= XP_LEVELS[i].minXP) return XP_LEVELS[i];
+  }
+  return XP_LEVELS[0];
+};
+const getXPProgress = (xp) => {
+  const curr = getXPLevel(xp);
+  const nextIdx = XP_LEVELS.findIndex(l => l.level === curr.level) + 1;
+  if (nextIdx >= XP_LEVELS.length) return 100;
+  const next = XP_LEVELS[nextIdx];
+  return Math.round(((xp - curr.minXP) / (next.minXP - curr.minXP)) * 100);
+};
+
+// ── Static fallback market signals ────────────────────────────────────────────
+const FALLBACK_SIGNALS = [
+  { emoji: "📈", text: "Nifty up 0.4% today" },
+  { emoji: "🏦", text: "RBI policy unchanged" },
+  { emoji: "💰", text: "Gold near all-time high" },
+  { emoji: "🛢️", text: "Crude oil steady at $82" },
+  { emoji: "📊", text: "FD rates at 7.5%" },
+];
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 const Dashboard = () => {
   const { user, token } = useAuth();
   const { data, loading, prefetch } = useDashboard();
+
+  // ── XP state ──────────────────────────────────────────────────────────────
+  const [userXP] = useState(() => {
+    try { return parseInt(localStorage.getItem("bm_web_xp")) || 0; } catch { return 0; }
+  });
+
+  // ── Market signals ────────────────────────────────────────────────────────
+  const [marketSignals, setMarketSignals] = useState(FALLBACK_SIGNALS);
+  useEffect(() => {
+    if (!token) return;
+    axios.get(`${API}/market/signals`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (Array.isArray(res.data) && res.data.length > 0) setMarketSignals(res.data);
+      })
+      .catch(() => {});
+  }, [token]);
 
   // ── Upcoming calendar events (next 7 days) ──────────────────────────────
   const todayDate   = new Date();
@@ -385,6 +432,12 @@ const Dashboard = () => {
               <span className="font-semibold text-stone-700 dark:text-stone-200">Fix: </span>
               {healthHint.fix}
             </p>
+            <Link
+              to={`/chat?prefill=${encodeURIComponent(healthHint.why + " — " + healthHint.fix + ". What should I do?")}`}
+              className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-orange-500 hover:text-orange-600 transition-colors"
+            >
+              Ask Chanakya <ArrowRight size={10} />
+            </Link>
           </div>
         )}
       </div>
@@ -714,6 +767,70 @@ const Dashboard = () => {
               </div>
             </div>
           )}
+
+          {/* ── XP / Level bar ──────────────────────────────────────────── */}
+          {(() => {
+            const lvl = getXPLevel(userXP);
+            const pctXP = getXPProgress(userXP);
+            return (
+              <div className="flex items-center gap-3 bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm px-4 py-2.5">
+                <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-sm font-bold text-orange-600 dark:text-orange-400 shrink-0">
+                  {lvl.level}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline justify-between mb-1">
+                    <p className="text-xs font-bold text-stone-700 dark:text-stone-200 truncate">{lvl.name}</p>
+                    <span className="text-[10px] font-semibold text-stone-400 ml-2 shrink-0">{userXP} XP</span>
+                  </div>
+                  <div className="h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-orange-500 transition-all duration-500" style={{ width: `${pctXP}%` }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Market Signals ────────────────────────────────────────────── */}
+          <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
+            {marketSignals.map((sig, i) => (
+              <span key={i} className="shrink-0 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-xs font-medium text-stone-700 dark:text-stone-300 whitespace-nowrap">
+                {sig.emoji} {sig.text}
+              </span>
+            ))}
+          </div>
+
+          {/* ── Feature Ticker ────────────────────────────────────────────── */}
+          <div className="overflow-hidden rounded-2xl bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 shadow-sm py-2">
+            <div className="flex whitespace-nowrap" style={{ animation: "featureTicker 28s linear infinite", width: "max-content" }}>
+              {[
+                { emoji: "📊", text: "X-ray any stock",    to: "/stock-analysis" },
+                { emoji: "🎯", text: "Dream it, goal it",  to: "/savings-goals" },
+                { emoji: "🧮", text: "SIP karo",           to: "/sip-calculator" },
+                { emoji: "🥇", text: "Gold rush?",         to: "/gold" },
+                { emoji: "🔥", text: "Retire early?",      to: "/fire" },
+                { emoji: "🏠", text: "Buy ya rent?",       to: "/buy-vs-rent" },
+                { emoji: "📈", text: "Fund shopping",      to: "/mutual-funds" },
+                { emoji: "💍", text: "Shaadi budget",      to: "/event-planner" },
+                { emoji: "💼", text: "Lifetime earnings",  to: "/lifetime-earnings" },
+              ].concat([
+                { emoji: "📊", text: "X-ray any stock",    to: "/stock-analysis" },
+                { emoji: "🎯", text: "Dream it, goal it",  to: "/savings-goals" },
+                { emoji: "🧮", text: "SIP karo",           to: "/sip-calculator" },
+                { emoji: "🥇", text: "Gold rush?",         to: "/gold" },
+                { emoji: "🔥", text: "Retire early?",      to: "/fire" },
+                { emoji: "🏠", text: "Buy ya rent?",       to: "/buy-vs-rent" },
+                { emoji: "📈", text: "Fund shopping",      to: "/mutual-funds" },
+                { emoji: "💍", text: "Shaadi budget",      to: "/event-planner" },
+                { emoji: "💼", text: "Lifetime earnings",  to: "/lifetime-earnings" },
+              ]).map((f, i) => (
+                <Link key={i} to={f.to}
+                  className="inline-flex items-center gap-1.5 mx-1.5 px-3 py-1.5 rounded-full bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:border-orange-200 dark:hover:border-orange-800 hover:text-orange-600 dark:hover:text-orange-400 transition-colors">
+                  <span>{f.emoji}</span> {f.text}
+                </Link>
+              ))}
+            </div>
+            <style>{`@keyframes featureTicker { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
+          </div>
 
           {/* ── Spend hero ────────────────────────────────────────────────── */}
           <div className={`rounded-3xl p-5 shadow-sm ${

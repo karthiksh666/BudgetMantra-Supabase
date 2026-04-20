@@ -736,10 +736,12 @@ export default function TripPlanner() {
     try {
       const trip = trips.find((t) => t.id === selectedTripId) || tripDetail;
       const res = await axios.post(
-        `${API}/chatbot`,
+        `${API}/trips/brainstorm`,
         {
-          message: `For Day ${idx + 1} of my ${trip?.destination || "trip"} trip (${day.title || ""}), suggest: ${brainstormInput}`,
-          conversation_history: [],
+          destination: trip?.destination || "the destination",
+          day_number: idx + 1,
+          day_title: day.title || "",
+          query: brainstormInput,
         },
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       );

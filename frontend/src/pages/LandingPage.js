@@ -7,6 +7,7 @@ import {
   Wallet, CreditCard, Target, ArrowRight, CheckCircle,
   MessageSquare, Sparkles, Shield, BarChart3,
   Zap, Send, TrendingUp, Flame, Plane, Users,
+  ShoppingBag, Receipt, Calculator, Smartphone,
 } from 'lucide-react';
 
 /* ── Tiny hook: fade-in on scroll ─────────────────────────────────────── */
@@ -56,15 +57,18 @@ function useCardReveal(count) {
 }
 
 const FEATURES = [
-  { icon: MessageSquare, color: 'from-purple-100 to-purple-200',   iconColor: 'text-purple-600',  title: 'Chanakya AI',        desc: 'Your personal finance advisor — always on, on every page. Log expenses, set goals, upload statements, ask anything. Just type.',  testId: 'feature-chanakya' },
-  { icon: Wallet,        color: 'from-blue-100 to-blue-200',       iconColor: 'text-blue-600',    title: 'Smart Budgeting',    desc: 'Set monthly budgets by category. Watch spending fill up in real-time. Know before you overspend — not after.',  testId: 'feature-budget' },
-  { icon: CreditCard,    color: 'from-orange-100 to-orange-200',   iconColor: 'text-orange-600',  title: 'EMI Manager',        desc: 'All your loans in one place. Track balance, due dates, and repayment progress. Foreclose early to save lakhs in interest.',  testId: 'feature-emi' },
-  { icon: Target,        color: 'from-amber-100 to-amber-200',     iconColor: 'text-amber-600',   title: 'Savings Goals',      desc: 'Set a goal — vacation, emergency fund, new laptop. Track contributions, deadlines and see exactly how far you are from the finish line.',  testId: 'feature-goals' },
-  { icon: TrendingUp,    color: 'from-emerald-100 to-teal-200',    iconColor: 'text-emerald-600', title: 'Investment Tracker', desc: 'Track mutual funds, stocks, FDs, PPF and more. See total invested vs current value and your overall portfolio returns.', pro: true, testId: 'feature-investments' },
-  { icon: BarChart3,     color: 'from-violet-100 to-violet-200',   iconColor: 'text-violet-600',  title: 'Statement Hub',      desc: 'Upload PhonePe, GPay, or bank statement PDFs. Chanakya auto-parses every transaction, infers categories, and handles password-protected PDFs.',  testId: 'feature-statement' },
-  { icon: Flame,         color: 'from-orange-100 to-red-200',      iconColor: 'text-red-500',     title: 'FIRE Calculator',    desc: 'Find out exactly when you can retire. Based on your savings rate, expenses, and target corpus using the 4% rule.',  testId: 'feature-fire' },
-  { icon: Plane,         color: 'from-cyan-100 to-cyan-200',       iconColor: 'text-cyan-600',    title: 'Trip Planner',       desc: 'Plan trips with an AI-generated day-by-day itinerary. Track group expenses and splits — all in one place.', pro: true, testId: 'feature-trips' },
-  { icon: Users,         color: 'from-pink-100 to-pink-200',       iconColor: 'text-pink-600',    title: 'Family Circle',      desc: 'Real-time collaborative expense tracker. Share a circle with family or friends, split costs, settle balances — live.', pro: true, testId: 'feature-circle' },
+  { icon: MessageSquare, color: 'from-purple-100 to-purple-200',   iconColor: 'text-purple-600',  title: '🧠 Chanakya AI Advisor',  desc: 'Not a chatbot — a Hinglish-speaking financial advisor who roasts your spending, celebrates your wins, and tells you exactly what to do. "Bhai, Zomato band kar. SIP shuru kar."', testId: 'feature-chanakya' },
+  { icon: Calculator,    color: 'from-emerald-100 to-teal-200',    iconColor: 'text-emerald-600', title: '🧮 17+ Calculators',      desc: 'SIP, EMI, PPF, NPS, FD, RD, SSY, SCSS, SGB, EPF, FIRE, Buy vs Rent, Income Tax, In-Hand Salary, Event Planner, Lifetime Earnings. Every number ends with a path forward.', mobile: true, testId: 'feature-calculators' },
+  { icon: TrendingUp,    color: 'from-teal-100 to-emerald-200',    iconColor: 'text-teal-600',    title: '📊 Market Signals',       desc: 'Real-time Nifty, Gold, Silver, Bitcoin, Ethereum prices. Chanakya connects your portfolio to live data — "Gold up 8%, your allocation is 4%, buy 2g more."',                    mobile: true, testId: 'feature-market' },
+  { icon: Target,        color: 'from-amber-100 to-yellow-200',    iconColor: 'text-amber-600',   title: '🎯 Smart Goals',          desc: 'Chanakya validates every goal against your real finances. Won\'t let you set an iPhone goal when EMIs are eating 54%. Wishlist → commitment → celebration.',                    testId: 'feature-goals' },
+  { icon: Sparkles,      color: 'from-yellow-100 to-amber-200',    iconColor: 'text-yellow-600',  title: '🏆 XP, Levels & Badges', desc: 'Budget Padawan → Arthashastra Master across 10 levels. 15 surprise badges — ₹1L Club, Goal Crusher, Stock Guru, Night Owl. Finance that feels like a game.',                   mobile: true, testId: 'feature-rewards' },
+  { icon: ShoppingBag,   color: 'from-rose-100 to-pink-200',       iconColor: 'text-rose-600',    title: '🛍️ Should I Buy This?', desc: 'Before you swipe that card — Chanakya says Buy, Wait for BBD sale, Save first, or Reconsider. Grounded in YOUR actual finances, not generic advice.',                        mobile: true, testId: 'feature-buy' },
+  { icon: Receipt,       color: 'from-blue-100 to-sky-200',        iconColor: 'text-blue-600',    title: '💰 Tax Optimiser',        desc: 'Old vs New regime FY 25-26 side-by-side. We pick the winner, show the breakdown, and tell you how to invest the saving at 12% = ₹8.6L in 10yr.',                               mobile: true, testId: 'feature-tax' },
+  { icon: Wallet,        color: 'from-amber-100 to-orange-200',    iconColor: 'text-orange-600',  title: '📈 Smart Budgeting',      desc: 'Category budgets that pace against the month. Donut charts, spending insights, and Chanakya\'s trend-driven nudges — "Food & dining is 3x above pace. Cloud kitchen band kar."', testId: 'feature-budget' },
+  { icon: CreditCard,    color: 'from-indigo-100 to-blue-200',     iconColor: 'text-indigo-600',  title: '🏦 EMI + Prepay Coach',   desc: 'Track every loan. Simulate prepayments — "Pay ₹20K extra this month, save ₹31K in interest and close 4 months early." Hope-mode for when it\'s a stretch.',                    testId: 'feature-emi' },
+  { icon: BarChart3,     color: 'from-violet-100 to-purple-200',   iconColor: 'text-violet-600',  title: '📄 Statement Parser',     desc: 'Upload PhonePe, GPay, or bank PDFs. Chanakya auto-parses every transaction, infers categories, handles password-protected files. Your CA is going to hate us.',                testId: 'feature-statement' },
+  { icon: Flame,         color: 'from-orange-100 to-red-200',      iconColor: 'text-red-500',     title: '🔥 FIRE Calculator',      desc: 'Lean / Regular / Fat FIRE — find exactly when you can retire based on your savings rate, expenses, and the 4% rule. Live updates as you tweak.',                               testId: 'feature-fire' },
+  { icon: Users,         color: 'from-pink-100 to-fuchsia-200',    iconColor: 'text-pink-600',    title: '👨‍👩‍👧 Life-Aware Finance', desc: 'Life profile with family, dependents, obligations. Per-member insurance tracking. Salary profile with ESOPs/RSUs. Auto expense categories for your life stage.',              pro: true, testId: 'feature-life' },
 ];
 
 const LandingPage = () => {
@@ -87,7 +91,7 @@ const LandingPage = () => {
   const [setCardRef, revealedCards] = useCardReveal(FEATURES.length);
 
   return (
-    <div className="min-h-screen bg-[#fffaf5] overflow-x-hidden" data-testid="landing-page">
+    <div className="min-h-screen bg-[#1c1917] overflow-x-hidden" data-testid="landing-page">
 
       <style>{`
         @keyframes fadeUp   { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:translateY(0); } }
@@ -115,15 +119,15 @@ const LandingPage = () => {
       `}</style>
 
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-stone-100">
+      <nav className="sticky top-0 z-50 bg-[#1c1917]/95 backdrop-blur-xl border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link to="/" className="flex items-center gap-3 group">
             <div className="p-2 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg shadow-orange-500/20 group-hover:shadow-orange-500/40 transition-shadow duration-300 anim-pulse-ring">
               <Wallet size={24} className="text-white" />
             </div>
-            <span className="text-xl font-bold text-stone-800 font-['Outfit']">Budget Mantra</span>
+            <span className="text-xl font-bold text-white font-['Outfit']">Budget Mantra</span>
           </Link>
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-stone-500">
+          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-stone-400">
             <a href="#features" className="hover:text-orange-600 transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-orange-600 transition-colors">How it works</a>
             <a href="#pricing" className="hover:text-orange-600 transition-colors">Pricing</a>
@@ -141,12 +145,12 @@ const LandingPage = () => {
       </nav>
 
       {/* Value strip */}
-      <div className="bg-stone-900 border-b border-stone-800">
-        <div className="max-w-5xl mx-auto px-6 py-3 flex flex-wrap items-center justify-center gap-6 md:gap-10">
+      <div className="bg-[#1c1917]">
+        <div className="max-w-5xl mx-auto px-6 py-2 flex flex-wrap items-center justify-center gap-x-10 gap-y-1">
           {[
-            'Free to start — no credit card needed',
-            'Chat with Chanakya — your AI financial advisor',
-            'Built for India · UPI · bank PDFs · EMIs',
+            '17 Calculators · 15 Badges · 10 Chanakya Levels',
+            '🧠 AI advisor that roasts your spending in Hinglish',
+            'Built for India · UPI · bank PDFs · EMIs · real market data',
           ].map(label => (
             <div key={label} className="flex items-center gap-2">
               <span className="w-1 h-1 rounded-full bg-orange-400 shrink-0" />
@@ -158,26 +162,26 @@ const LandingPage = () => {
 
       {/* Hero */}
       <section className="relative overflow-hidden" data-testid="hero-section">
-        <div className="absolute inset-0 bg-gradient-to-br from-orange-50 via-amber-50/50 to-stone-50" />
-        <div className="absolute top-20 right-0 w-[600px] h-[600px] bg-orange-200/30 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-amber-200/40 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1a0f05] via-[#2a1508] to-[#1c1917]" />
+        <div className="absolute top-20 right-0 w-[600px] h-[600px] bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-6 py-20 lg:py-28" ref={heroRef}>
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-8">
-              <div className={`inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-orange-100 anim-fade-up ${heroVisible ? '' : 'opacity-0'}`}>
-                <Sparkles size={15} className="text-orange-500" />
-                <span className="text-sm font-medium text-stone-600">Chat-first finance — just tell Chanakya 💬</span>
+              <div className={`inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-orange-500/30 anim-fade-up ${heroVisible ? '' : 'opacity-0'}`}>
+                <Sparkles size={15} className="text-orange-400" />
+                <span className="text-sm font-medium text-orange-200">🧘 Your AI money advisor who speaks Hinglish</span>
               </div>
 
-              <h1 className={`text-5xl lg:text-6xl font-bold text-stone-900 leading-tight font-['Outfit'] anim-fade-up delay-100 ${heroVisible ? '' : 'opacity-0'}`}>
-                Just tell{' '}
+              <h1 className={`text-5xl lg:text-6xl font-bold text-white leading-tight font-['Outfit'] anim-fade-up delay-100 ${heroVisible ? '' : 'opacity-0'}`}>
+                Meet{' '}
                 <span className="shimmer-text">Chanakya.</span><br />
-                It handles the rest.
+                Your money's new boss.
               </h1>
 
-              <p className={`text-lg text-stone-800 leading-relaxed max-w-xl anim-fade-up delay-200 ${heroVisible ? '' : 'opacity-0'}`}>
-                No spreadsheets. No 47-step onboarding. Just type <span className="font-semibold text-orange-600">"paid SBI EMI ₹12,500"</span> and Chanakya logs it, tracks your balance, and tells you exactly how many months until you're debt-free. Upload your bank PDF and it parses every transaction automatically. Your CA is going to hate us.
+              <p className={`text-lg text-stone-300 leading-relaxed max-w-xl anim-fade-up delay-200 ${heroVisible ? '' : 'opacity-0'}`}>
+                No spreadsheets. No boring dashboards. Just type <span className="font-semibold text-orange-400">"swiggy 450"</span> and Chanakya logs it, roasts your spending, and tells you exactly what to do next. 17 calculators. 15 badges. 10 levels. Real market data. One AI advisor who actually speaks your language.
               </p>
 
               <div className={`flex flex-col sm:flex-row gap-4 anim-fade-up delay-300 ${heroVisible ? '' : 'opacity-0'}`}>
@@ -187,7 +191,7 @@ const LandingPage = () => {
                   </Button>
                 </Link>
                 <a href="#features">
-                  <Button variant="outline" size="lg" className="w-full sm:w-auto bg-white/70 border-2 border-stone-400 hover:border-orange-400 px-8 py-6 rounded-xl font-semibold text-lg text-stone-900 hover:text-orange-600 transition-all duration-300">
+                  <Button variant="outline" size="lg" className="w-full sm:w-auto bg-white/10 border-2 border-white/20 hover:border-orange-400 px-8 py-6 rounded-xl font-semibold text-lg text-white hover:text-orange-400 transition-all duration-300">
                     See Features
                   </Button>
                 </a>
@@ -195,13 +199,13 @@ const LandingPage = () => {
 
               <div className={`flex flex-wrap gap-2 anim-fade-up delay-400 ${heroVisible ? '' : 'opacity-0'}`}>
                 {['No credit card required', 'Free forever plan', 'Secure & private'].map(t => (
-                  <span key={t} className="flex items-center gap-1.5 bg-white/80 border border-stone-200 text-stone-800 text-sm font-medium px-3 py-1.5 rounded-full shadow-sm">
+                  <span key={t} className="flex items-center gap-1.5 bg-white/10 border border-white/20 text-white/80 text-sm font-medium px-3 py-1.5 rounded-full">
                     <CheckCircle size={13} className="text-emerald-600 shrink-0" /> {t}
                   </span>
                 ))}
               </div>
 
-              <div className={`flex items-start gap-3 bg-white border border-emerald-200 rounded-2xl px-5 py-4 shadow-sm anim-fade-up delay-500 ${heroVisible ? '' : 'opacity-0'}`}>
+              <div className={`flex items-start gap-3 bg-emerald-900/30 border border-emerald-500/30 rounded-2xl px-5 py-4 anim-fade-up delay-500 ${heroVisible ? '' : 'opacity-0'}`}>
                 <div className="p-1.5 bg-emerald-100 rounded-lg shrink-0 mt-0.5">
                   <Shield size={16} className="text-emerald-600" />
                 </div>
@@ -215,7 +219,7 @@ const LandingPage = () => {
             {/* Chat mockup */}
             <div className={`relative lg:pl-8 anim-fade-up delay-300 ${heroVisible ? '' : 'opacity-0'}`}>
               <div className="relative">
-                <div className="bg-white rounded-3xl shadow-2xl shadow-stone-900/10 border border-stone-100 overflow-hidden">
+                <div className="bg-[#242220] rounded-3xl shadow-2xl shadow-black/30 border border-white/10 overflow-hidden">
                   {/* Chat header */}
                   <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-3.5 flex items-center gap-3">
                     <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center shrink-0">
@@ -229,7 +233,7 @@ const LandingPage = () => {
                   </div>
 
                   {/* Chat messages */}
-                  <div className="p-4 space-y-3 bg-stone-50 h-[286px] overflow-hidden">
+                  <div className="p-4 space-y-3 bg-[#1a1816] h-[286px] overflow-hidden">
                     <div className="flex justify-end">
                       <div className="bg-orange-500 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[210px] text-sm font-medium shadow-sm">
                         Paid SBI home loan ₹28,500 today
@@ -239,7 +243,7 @@ const LandingPage = () => {
                       <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center shrink-0">
                         <Sparkles size={12} className="text-orange-600" />
                       </div>
-                      <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-stone-100 max-w-[235px]">
+                      <div className="bg-white/10 rounded-2xl rounded-tl-sm px-4 py-3 border border-white/10 max-w-[235px]">
                         <p className="text-sm font-semibold text-stone-800">✅ EMI logged!</p>
                         <p className="text-xs text-stone-500 mt-1 leading-snug">Balance: ₹18.4L · 58 months left · You're 38% done 🏠</p>
                       </div>
@@ -253,7 +257,7 @@ const LandingPage = () => {
                       <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center shrink-0">
                         <Sparkles size={12} className="text-orange-600" />
                       </div>
-                      <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-stone-100 max-w-[240px]">
+                      <div className="bg-white/10 rounded-2xl rounded-tl-sm px-4 py-3 border border-white/10 max-w-[240px]">
                         <p className="text-sm font-semibold text-stone-800">₹4,820 on food delivery 😅</p>
                         <p className="text-xs text-stone-500 mt-1 leading-snug">That's 3× your grocery spend. You're basically running a cloud kitchen.</p>
                       </div>
@@ -262,7 +266,7 @@ const LandingPage = () => {
                       <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center shrink-0">
                         <Sparkles size={12} className="text-orange-600" />
                       </div>
-                      <div className="bg-white rounded-2xl rounded-tl-sm px-3 py-3 shadow-sm border border-stone-100">
+                      <div className="bg-white/10 rounded-2xl rounded-tl-sm px-3 py-3 border border-white/10">
                         <div className="flex gap-1.5 items-center">
                           {[0,1,2].map(i => (
                             <div key={i} className="w-1.5 h-1.5 bg-stone-300 rounded-full" style={{ animation: `floatY 1.2s ease-in-out ${i * 0.2}s infinite` }} />
@@ -273,8 +277,8 @@ const LandingPage = () => {
                   </div>
 
                   {/* Input bar */}
-                  <div className="px-4 py-3 bg-white border-t border-stone-100 flex items-center gap-2">
-                    <div className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-400">
+                  <div className="px-4 py-3 bg-white/5 border-t border-white/10 flex items-center gap-2">
+                    <div className="flex-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-xs text-stone-400">
                       Ask anything or log a transaction…
                     </div>
                     <div className="w-8 h-8 bg-orange-500 rounded-xl flex items-center justify-center shrink-0">
@@ -284,7 +288,7 @@ const LandingPage = () => {
                 </div>
 
                 {/* Floating cards */}
-                <div className="absolute -bottom-5 -left-5 bg-white rounded-2xl shadow-xl p-3.5 border border-stone-100 max-w-[200px] anim-float">
+                <div className="absolute -bottom-5 -left-5 bg-[#242220] rounded-2xl shadow-xl p-3.5 border border-white/10 max-w-[200px] anim-float">
                   <div className="flex items-start gap-2.5">
                     <div className="p-1.5 bg-emerald-100 rounded-lg shrink-0">
                       <Target size={14} className="text-emerald-600" />
@@ -296,7 +300,7 @@ const LandingPage = () => {
                   </div>
                 </div>
 
-                <div className="absolute -top-4 -right-4 bg-white rounded-2xl shadow-xl p-3.5 border border-stone-100 anim-float-slow">
+                <div className="absolute -top-4 -right-4 bg-[#242220] rounded-2xl shadow-xl p-3.5 border border-white/10 anim-float-slow">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-purple-100 rounded-lg">
                       <Zap size={14} className="text-purple-600" />
@@ -308,7 +312,7 @@ const LandingPage = () => {
                   </div>
                 </div>
 
-                <div className="absolute top-1/2 -right-8 bg-white rounded-2xl shadow-xl p-3 border border-stone-100 anim-float" style={{ animationDelay: '2s' }}>
+                <div className="absolute top-1/2 -right-8 bg-[#242220] rounded-2xl shadow-xl p-3 border border-white/10 anim-float" style={{ animationDelay: '2s' }}>
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-emerald-100 rounded-lg">
                       <BarChart3 size={14} className="text-emerald-600" />
@@ -326,28 +330,28 @@ const LandingPage = () => {
       </section>
 
       {/* Chat-first strip */}
-      <section className="py-16 bg-white border-y border-stone-100">
+      <section className="py-16 bg-[#1c1917]">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-10">
-            <p className="text-sm font-bold uppercase tracking-widest text-orange-500 mb-2">Just say it. Chanakya does it.</p>
-            <h2 className="text-3xl font-bold text-stone-900 font-['Outfit']">Real things you can actually type</h2>
+            <p className="text-sm font-bold uppercase tracking-widest text-orange-400 mb-2">Just say it. Chanakya does it.</p>
+            <h2 className="text-3xl font-bold text-white font-['Outfit']">Real things you can actually type</h2>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { user: '"Add goal: Europe trip ₹2L by Dec"', reply: '✅ Goal created! Save ₹16,667/month to hit it.', color: 'from-teal-50 to-emerald-50', border: 'border-teal-100', replyColor: 'text-teal-700' },
-              { user: '"How\'s my budget looking?"', reply: '62% used. Food & dining is your leak — ₹8K above target 🍔', color: 'from-orange-50 to-amber-50', border: 'border-orange-100', replyColor: 'text-orange-700' },
-              { user: '"I lent Rahul ₹5,000"', reply: '💸 Hand loan tracked. I\'ll remind you when it\'s due.', color: 'from-blue-50 to-indigo-50', border: 'border-blue-100', replyColor: 'text-blue-700' },
-              { user: '"Should I foreclose my car loan?"', reply: 'Yes! You save ₹31,420 in interest if you close it now 🚗', color: 'from-purple-50 to-violet-50', border: 'border-purple-100', replyColor: 'text-purple-700' },
+              { user: '"Should I buy iPhone 16 Pro?"',      reply: 'Wait 6 weeks — Flipkart BBD likely drops it ₹15k. Or save ₹11k/mo for 12mo and skip the EMI. 📱', color: 'from-rose-500/15 to-pink-500/10',     border: 'border-rose-500/20',     replyColor: 'text-rose-300' },
+              { user: '"How\'s my budget looking?"',         reply: '62% used · day 15/30. Food & dining is your leak — ₹8K above pace. 🍔',                      color: 'from-orange-500/15 to-amber-500/10', border: 'border-orange-500/20',   replyColor: 'text-orange-300' },
+              { user: '"Am I paying too much tax?"',         reply: 'Switch to new regime — saves you ₹47k/yr. Invest it at 12% = ₹8.6L in 10yr. 💰',              color: 'from-blue-500/15 to-indigo-500/10',  border: 'border-blue-500/20',     replyColor: 'text-blue-300' },
+              { user: '"Should I foreclose my car loan?"',   reply: 'Yes! You save ₹31,420 in interest if you close it now 🚗',                                    color: 'from-purple-500/15 to-violet-500/10',border: 'border-purple-500/20',   replyColor: 'text-purple-300' },
             ].map(({ user, reply, color, border, replyColor }, i) => (
               <div key={i} className={`bg-gradient-to-br ${color} border ${border} rounded-2xl p-5 space-y-3`}>
                 <div className="flex justify-end">
-                  <div className="bg-stone-800 text-white rounded-xl rounded-tr-sm px-3 py-2 text-xs font-medium max-w-[180px] leading-snug">
+                  <div className="bg-orange-500 text-white rounded-xl rounded-tr-sm px-3 py-2 text-xs font-medium max-w-[180px] leading-snug">
                     {user}
                   </div>
                 </div>
                 <div className="flex gap-2 items-start">
-                  <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                    <Sparkles size={10} className="text-orange-600" />
+                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                    <Sparkles size={10} className="text-orange-400" />
                   </div>
                   <p className={`text-xs font-semibold leading-snug ${replyColor}`}>{reply}</p>
                 </div>
@@ -357,56 +361,58 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="py-24 bg-white" data-testid="features-section">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 rounded-full mb-4">
-              <Zap size={14} className="text-orange-500" />
-              <span className="text-sm font-medium text-orange-600">Everything you need</span>
-            </div>
-            <h2 className="text-4xl font-bold text-stone-900 mb-4 font-['Outfit']">
-              Everything handled by{' '}
-              <span className="shimmer-text">one chat.</span>
+      {/* Features — storytelling journey */}
+      <section id="features" className="py-24 bg-gradient-to-b from-[#1c1917] to-[#0f0e0d]" data-testid="features-section">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center max-w-3xl mx-auto mb-20">
+            <p className="text-sm font-bold uppercase tracking-widest text-orange-400 mb-3">Your money journey</p>
+            <h2 className="text-4xl font-bold text-white mb-4 font-['Outfit']">
+              From chaos to{' '}
+              <span className="shimmer-text">clarity.</span>
             </h2>
-            <p className="text-lg text-stone-600">Every feature talks to Chanakya. Log, track, plan, and get advice — all without leaving the chat.</p>
+            <p className="text-lg text-stone-400">Here's how Chanakya transforms your relationship with money — step by step.</p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FEATURES.map(({ icon: Icon, color, iconColor, title, desc, testId, pro }, i) => (
-              <div
-                key={title}
-                ref={setCardRef(i)}
-                className={`feature-card group relative p-6 bg-white rounded-2xl border hover:-translate-y-2 transition-all duration-300 overflow-hidden cursor-default ${
-                  pro ? 'border-violet-100/60 bg-gradient-to-br from-white to-violet-50/30 pro-card-shine' : 'border-stone-100 hover:border-stone-200'
-                } ${revealedCards.has(i) ? 'card-revealed' : 'card-hidden'}`}
-                data-testid={testId}
-              >
-                <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-40 transition-opacity duration-300 rounded-2xl`} />
-                <div className="relative z-10">
-                  {pro && (
-                    <span className="absolute -top-1 -right-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-gradient-to-r from-violet-500 to-purple-600 text-white">
-                      <Sparkles size={7} /> Pro
-                    </span>
-                  )}
-                  <div className={`feature-icon w-12 h-12 bg-gradient-to-br ${color} rounded-2xl flex items-center justify-center mb-4 shadow-sm`}>
-                    <Icon size={22} className={iconColor} />
-                  </div>
-                  <h3 className="text-base font-bold text-stone-800 mb-1.5 font-['Outfit']">{title}</h3>
-                  <p className="text-stone-500 text-sm leading-relaxed">{desc}</p>
+          {/* Journey steps */}
+          <div className="space-y-8">
+            {[
+              { step: '01', emoji: '💬', title: 'Just tell Chanakya', desc: 'Type "chai 30" or "swiggy 450" — Chanakya logs it, categorizes it, and roasts you if needed. No forms. No spreadsheets. Just talk.', color: 'from-orange-500/20 to-orange-600/10', border: 'border-orange-500/20' },
+              { step: '02', emoji: '📊', title: 'See where it goes', desc: 'Donut charts, category breakdowns, month-over-month trends. Not just data — Chanakya tells you what it MEANS. "Dining Out is 2x your budget. Cut 3 Swiggy orders."', color: 'from-blue-500/20 to-blue-600/10', border: 'border-blue-500/20' },
+              { step: '03', emoji: '⚡', title: 'Get warned before trouble', desc: 'EMI burden at 54%? Savings rate below 10%? No emergency fund? Chanakya flags it before it becomes a crisis — with a specific action to fix it.', color: 'from-red-500/20 to-red-600/10', border: 'border-red-500/20' },
+              { step: '04', emoji: '🎯', title: 'Set goals that make sense', desc: 'Chanakya validates every goal against your actual finances. Won\'t let you set an iPhone goal when EMIs eat 54%. Calculates monthly SIP needed. Tracks progress.', color: 'from-emerald-500/20 to-emerald-600/10', border: 'border-emerald-500/20' },
+              { step: '05', emoji: '📈', title: 'Grow your money', desc: '17 calculators (SIP, PPF, NPS, FD, FIRE, Buy vs Rent...). Investment Advisor asks 4 questions and builds your personalized plan. Stock analyzer. Fund browser. Gold tracker.', color: 'from-violet-500/20 to-violet-600/10', border: 'border-violet-500/20' },
+              { step: '06', emoji: '🏆', title: 'Level up', desc: 'Earn XP for every smart money move. Unlock badges (₹1L Club, Goal Crusher, Stock Guru). Rise from Budget Padawan to Arthashastra Master. Your money journey, gamified.', color: 'from-amber-500/20 to-amber-600/10', border: 'border-amber-500/20' },
+            ].map((item, i) => (
+              <div key={item.step} className={`relative flex gap-6 items-start p-8 rounded-2xl bg-gradient-to-r ${item.color} border ${item.border} backdrop-blur-sm`}>
+                <div className="shrink-0 w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
+                  <span className="text-2xl">{item.emoji}</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-orange-400 uppercase tracking-widest mb-1">Step {item.step}</p>
+                  <h3 className="text-xl font-bold text-white mb-2 font-['Outfit']">{item.title}</h3>
+                  <p className="text-stone-400 leading-relaxed">{item.desc}</p>
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Bottom CTA */}
+          <div className="text-center mt-16">
+            <Link to="/signup">
+              <Button size="lg" className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-10 py-6 rounded-xl font-semibold text-lg shadow-xl shadow-orange-500/30">
+                Start Your Journey <ArrowRight size={20} className="ml-2" />
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="py-12 md:py-24 bg-gradient-to-br from-orange-50 via-amber-50/50 to-stone-50" data-testid="how-it-works-section">
+      <section id="how-it-works" className="py-12 md:py-24 bg-gradient-to-b from-[#0f0e0d] to-[#1c1917]" data-testid="how-it-works-section">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-8 md:mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-stone-900 mb-3 md:mb-4 font-['Outfit']">Three steps. Seriously, just three.</h2>
-            <p className="text-base md:text-lg text-stone-600">No spreadsheets were harmed in the making of this app.</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4 font-['Outfit']">Three steps. Seriously, just three.</h2>
+            <p className="text-base md:text-lg text-stone-400">No spreadsheets were harmed in the making of this app.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-4 md:gap-8 lg:gap-12 relative">
             <div className="hidden md:block absolute top-10 left-1/3 right-1/3 h-0.5 bg-gradient-to-r from-orange-200 to-orange-300" />
@@ -415,7 +421,7 @@ const LandingPage = () => {
               { n: '2', title: 'Just Start Typing', desc: 'Tell Chanakya anything — "paid rent", "got salary", "EMI due". It figures out the rest.', icon: MessageSquare },
               { n: '3', title: 'Watch It Work', desc: 'Real-time health score, smart nudges, and roasts on your Zomato habit. You\'re welcome.', icon: Sparkles },
             ].map(({ n, title, desc, icon: Icon }, i) => (
-              <div key={n} className="flex md:flex-col items-center text-left md:text-center gap-4 md:gap-0 group relative bg-white md:bg-transparent rounded-2xl md:rounded-none p-3 md:p-0 border border-stone-100 md:border-none shadow-sm md:shadow-none">
+              <div key={n} className="flex md:flex-col items-center text-left md:text-center gap-4 md:gap-0 group relative bg-white/5 md:bg-transparent rounded-2xl md:rounded-none p-3 md:p-0 border border-white/10 md:border-none">
                 <div className="w-12 h-12 md:w-20 md:h-20 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl md:rounded-3xl flex items-center justify-center shrink-0 md:mx-auto md:mb-4 shadow-lg shadow-orange-500/30">
                   <span className="text-xl md:text-3xl font-bold text-white font-['Outfit']">{n}</span>
                 </div>
@@ -430,15 +436,15 @@ const LandingPage = () => {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="py-24 bg-gradient-to-br from-orange-50 via-amber-50/30 to-stone-50">
+      <section id="pricing" className="py-24 bg-gradient-to-b from-[#1c1917] to-[#0f0e0d]">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-stone-900 font-['Outfit'] mb-4">Simple, honest pricing</h2>
-            <p className="text-lg text-stone-600">Start free. Upgrade when you're ready.</p>
+            <h2 className="text-4xl font-bold text-white font-['Outfit'] mb-4">Simple, honest pricing</h2>
+            <p className="text-lg text-stone-400">Start free. Upgrade when you're ready.</p>
           </div>
           <div ref={pricingRef} className="grid md:grid-cols-2 gap-8">
             {/* Free */}
-            <div className={`bg-white rounded-3xl p-8 border border-stone-200 shadow-sm ${pricingVisible ? 'anim-fade-up' : 'opacity-0'}`}>
+            <div className={`bg-[#242220] rounded-3xl p-8 border border-white/10 ${pricingVisible ? 'anim-fade-up' : 'opacity-0'}`}>
               <div className="mb-6">
                 <p className="text-sm font-semibold text-stone-500 uppercase tracking-widest mb-2">Free</p>
                 <p className="text-5xl font-bold text-stone-900 font-['Outfit']">₹0<span className="text-lg text-stone-400 font-normal">/mo</span></p>
@@ -502,7 +508,7 @@ const LandingPage = () => {
       </section>
 
       {/* CTA */}
-      <section className="py-24 bg-gradient-to-br from-stone-900 to-stone-800 relative overflow-hidden" data-testid="cta-section">
+      <section className="py-24 bg-gradient-to-br from-[#2a1508] to-[#1c1917] relative overflow-hidden" data-testid="cta-section">
         <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/10 rounded-full -translate-y-48 translate-x-48 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/10 rounded-full translate-y-32 -translate-x-32 pointer-events-none" />
         <div className="relative max-w-4xl mx-auto px-6 text-center">
@@ -523,7 +529,7 @@ const LandingPage = () => {
       </section>
 
       {/* Feedback */}
-      <section id="feedback" className="py-24 bg-white">
+      <section id="feedback" className="py-24 bg-[#1c1917]">
         <div className="max-w-2xl mx-auto px-6">
           <div className="text-center mb-10">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 rounded-full mb-4">
@@ -547,20 +553,20 @@ const LandingPage = () => {
                   <Label htmlFor="fb-name" className="text-stone-700 font-medium text-sm">Your Name</Label>
                   <Input id="fb-name" placeholder="Rahul Sharma" required value={feedback.name}
                     onChange={e => setFeedback({ ...feedback, name: e.target.value })}
-                    className="h-11 bg-white border-stone-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl" />
+                    className="h-11 bg-white/10 border-white/20 text-white focus:border-orange-400 focus:ring-orange-400/20 rounded-xl" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="fb-email" className="text-stone-700 font-medium text-sm">Email Address</Label>
                   <Input id="fb-email" type="email" placeholder="you@example.com" required value={feedback.email}
                     onChange={e => setFeedback({ ...feedback, email: e.target.value })}
-                    className="h-11 bg-white border-stone-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl" />
+                    className="h-11 bg-white/10 border-white/20 text-white focus:border-orange-400 focus:ring-orange-400/20 rounded-xl" />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="fb-message" className="text-stone-700 font-medium text-sm">Message</Label>
                 <textarea id="fb-message" rows={5} required placeholder="What do you love? What can we improve? Any features you'd like?" value={feedback.message}
                   onChange={e => setFeedback({ ...feedback, message: e.target.value })}
-                  className="w-full px-4 py-3 bg-white border border-stone-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 rounded-xl text-sm text-stone-700 placeholder:text-stone-400 outline-none resize-none transition-all" />
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 focus:border-orange-400 text-white focus:ring-2 focus:ring-orange-400/20 rounded-xl text-sm text-white placeholder:text-stone-500 outline-none resize-none transition-all" />
               </div>
               <Button type="submit" className="w-full h-12 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-semibold shadow-lg shadow-orange-500/25 transition-all duration-300">
                 <Send size={16} className="mr-2" /> Send Feedback

@@ -410,7 +410,7 @@ GOAL_TRIGGERS = [
     r'\b(need .{1,25} by|buy .{1,25} in|afford .{1,25} in)\b',
     r'\b(save .{1,10} for|put aside .{1,10} for)\b',
     # Common goal items
-    r'\b(iphone|laptop|bike|car|house|trip|vacation|wedding|education fund|emergency fund)\b',
+    r'\b(iphone|laptop|bike|car|house|home|apartment|flat|vacation|wedding|education fund|emergency fund)\b',
     # Hinglish
     r'\b(goal banana|target banana|bachat karna|khareedna hai)\b',
 ]
@@ -427,12 +427,21 @@ EMI_TRIGGERS = [
     r'\b(when will.{0,15}loan.{0,10}over|when.{0,10}debt free|when.{0,10}loan finish)\b',
 ]
 
+PLANNING_QUESTION_TRIGGERS = [
+    # Future-looking / affordability questions — always queries, never logs.
+    r'\b(when can i|when will i|when could i|when should i|can i ever|will i ever)\b',
+    r'\b(can i afford|should i buy|can i buy|can we buy|do i have enough|am i able to)\b',
+    r'\b(is it okay to|is it fine to|is it wise to|is it smart to|how long (?:until|till|before) i can)\b',
+]
+
 QUERY_TRIGGERS = [
     r'\b(how much|kitna|kitne|balance|left|remaining|bacha|bachega)\b',
     r'\b(show|tell me|what is|whats|what did|what have|how am i|am i on track)\b',
     r'\b(this month|last month|today|this week|last week|this year)\b',
     r'\b(spending|spent on|expenses?|where did|where is my)\b',
     r'\b(can i afford|should i buy|is it okay to|is it fine to|will i)\b',
+    r'\b(when can i|when will i|when could i|when should i|can i ever|will i ever)\b',
+    r'\b(can i buy|can we buy|do i have enough|am i able to|how long (?:until|till|before) i can)\b',
     r'\b(analyse|analyze|breakdown|summary|report|overview|snapshot)\b',
     r'\b(savings rate|expense ratio|emi ratio|health score|score)\b',
     r'\b(my goals?|goal progress|how far|target)\b',
@@ -484,7 +493,7 @@ LOAN_TRIGGERS = [
     r'\b(lend|lent|borrow|borrowed|gave loan|took loan from friend|hand loan)\b',
     r'\b(give money|gave money|borrowed from|lent to|gave to friend)\b',
     r'\b(collect|recover|collect money|loan returned|money returned)\b',
-    r'\b(udhaar|udhar|diya|liya|wapas kiya|wapas milega)\b',
+    r'\b(udhaar|udhar|udhaar diya|udhaar liya|paise?\s+udhaar|wapas kiya|wapas milega|wapas dena)\b',
     r'\b(iou|owe|owes me|i owe)\b',
 ]
 
@@ -496,7 +505,7 @@ GIFT_TRIGGERS = [
 
 TRIP_TRIGGERS = [
     r'\b(trip|travel expense|vacation expense|holiday expense|tour)\b',
-    r'\b(add trip|new trip|create trip|trip to|travelling to|going to)\b',
+    r'\b(add trip|new trip|create trip|trip to|travelling to|going on a trip|plan(?:ning)? a trip)\b',
     r'\b(trip budget|travel budget|trip cost|trip expense)\b',
 ]
 
@@ -539,6 +548,11 @@ def detect_intent(text: str) -> str:
     for pat in EDIT_TRIGGERS:
         if re.search(pat, t):
             return 'edit'
+    # Planning / affordability questions must win before feature triggers,
+    # otherwise "can i buy a home?" gets misrouted to GOAL via the "home" keyword.
+    for pat in PLANNING_QUESTION_TRIGGERS:
+        if re.search(pat, t):
+            return 'query'
     for pat in INCOME_TRIGGERS:
         if re.search(pat, t):
             return 'income'

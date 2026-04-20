@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { API } from "@/App";
 import Navigation from "@/components/Navigation";
@@ -78,6 +79,35 @@ const SavingsGoals = () => {
 
   const [selectMode, setSelectMode]         = useState(false);
   const [selected, setSelected]             = useState(new Set());
+
+  // Tab switcher: "active" | "overdue"
+  const [activeTab, setActiveTab]           = useState("active");
+
+  // Financial score for Chanakya's Check
+  const [finScore, setFinScore]             = useState(null);
+
+  // Prefill from query params (e.g. /savings-goals?prefill=FIRE+Fund&amount=5000000)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const prefillName = searchParams.get("prefill");
+    const prefillAmount = searchParams.get("amount");
+    if (prefillName || prefillAmount) {
+      setFormData(prev => ({
+        ...prev,
+        name: prefillName || prev.name,
+        target_amount: prefillAmount || prev.target_amount,
+      }));
+      setShowCreate(true);
+      // Clear the params so a refresh doesn't re-trigger
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    axios.get(`${API}/financial-score`)
+      .then(res => setFinScore(res.data))
+      .catch(() => {});
+  }, []);
 
   const fetchGoals = useCallback(async () => {
     const [goalsRes, summaryRes] = await Promise.all([
@@ -180,8 +210,49 @@ const SavingsGoals = () => {
   const openContribute = (goal) => { setSelectedGoal(goal); setContribution(""); setShowContribute(true); };
   const openDelete     = (goal) => { setSelectedGoal(goal); setShowDelete(true); };
 
-  const activeGoals    = goals.filter(g => g.status !== "completed");
+  const now = new Date();
+
+  // "Active" tab: incomplete goals whose target_date is still in the future, OR goals already at 100%+
+  const tabActiveGoals = goals.filter(g => {
+    if (g.status === "completed") return false;
+    const pct = Math.round((g.current_amount / g.target_amount) * 100) || 0;
+    if (pct >= 100) return true;
+    return new Date(g.target_date) >= now;
+  });
+
+  // "Overdue & Done" tab: overdue (past target_date + <100%) + completed
+  const overdueGoals = goals.filter(g => {
+    if (g.status === "completed") return false;
+    const pct = Math.round((g.current_amount / g.target_amount) * 100) || 0;
+    return pct < 100 && new Date(g.target_date) < now;
+  });
   const completedGoals = goals.filter(g => g.status === "completed");
+  const tabOverdueAndDone = [...overdueGoals, ...completedGoals];
+
+  // For rendering logic — keep backward compat
+  const activeGoals = goals.filter(g => g.status !== "completed");
+
+  // Chanakya's Check helper
+  const getChanakyaCheck = () => {
+    if (!finScore || !formData.target_amount) return null;
+    const income = finScore.monthly_income || 0;
+    if (!income) return null;
+    const amt = parseFloat(formData.target_amount) || 0;
+    if (!amt) return null;
+
+    const emiPct = finScore.emi_burden_pct ?? 0;
+    const savingsRate = finScore.savings_rate ?? 0;
+    const monthsOfIncome = income > 0 ? (amt / income) : 0;
+    const freePerMonth = income - (finScore.total_expenses || 0) - (finScore.total_emis || 0);
+
+    if (emiPct > 40 && amt > income)
+      return { type: "warn", msg: `\u26A0\uFE0F EMIs already eat ${Math.round(emiPct)}% of income. This goal may stretch you thin.` };
+    if (savingsRate < 10)
+      return { type: "danger", msg: `\uD83D\uDD34 Savings rate is only ${Math.round(savingsRate)}%. Build emergency fund first.` };
+    if (monthsOfIncome > 12)
+      return { type: "info", msg: `\u23F3 This is ${Math.round(monthsOfIncome)} months of income. Is this the right priority?` };
+    return { type: "ok", msg: `\u2705 Looks good! You have ${fmtAmt(Math.max(0, freePerMonth))}/mo free \u2014 this goal is realistic.` };
+  };
 
   if (loading) return (
     <>
@@ -288,6 +359,32 @@ const SavingsGoals = () => {
             </div>
           )}
 
+          {/* ── Tab Switcher ── */}
+          {goals.length > 0 && (
+            <div className="flex items-center gap-2 mb-5">
+              <button
+                onClick={() => setActiveTab("active")}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                  activeTab === "active"
+                    ? "bg-orange-500 text-white shadow-sm shadow-orange-300/40"
+                    : "bg-white text-stone-500 border border-stone-200 hover:bg-stone-50"
+                }`}
+              >
+                Active ({tabActiveGoals.length})
+              </button>
+              <button
+                onClick={() => setActiveTab("overdue")}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                  activeTab === "overdue"
+                    ? "bg-orange-500 text-white shadow-sm shadow-orange-300/40"
+                    : "bg-white text-stone-500 border border-stone-200 hover:bg-stone-50"
+                }`}
+              >
+                Overdue & Done ({tabOverdueAndDone.length})
+              </button>
+            </div>
+          )}
+
           {/* ── Goals grid ── */}
           {loading ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -310,12 +407,14 @@ const SavingsGoals = () => {
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : activeTab === "active" ? (
             <>
-              {/* Active */}
-              {activeGoals.length > 0 && (
+              {/* Active tab */}
+              {tabActiveGoals.length === 0 ? (
+                <div className="text-center py-12 text-stone-400 text-sm">No active goals right now.</div>
+              ) : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                  {activeGoals.map(goal => {
+                  {tabActiveGoals.map(goal => {
                     const pct  = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100)) || 0;
                     const Icon = CAT_ICONS[goal.category] || PiggyBank;
                     const remaining = goal.target_amount - goal.current_amount;
@@ -421,44 +520,145 @@ const SavingsGoals = () => {
                   })}
                 </div>
               )}
+            </>
+          ) : (
+            <>
+              {/* Overdue & Done tab */}
+              {tabOverdueAndDone.length === 0 ? (
+                <div className="text-center py-12 text-stone-400 text-sm">No overdue or completed goals.</div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Overdue goals */}
+                  {overdueGoals.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                        <AlertTriangle size={12} /> Overdue ({overdueGoals.length})
+                      </p>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {overdueGoals.map(goal => {
+                          const pct  = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100)) || 0;
+                          const Icon = CAT_ICONS[goal.category] || PiggyBank;
+                          const daysOverdue = Math.ceil((new Date() - new Date(goal.target_date)) / 86400000);
 
-              {/* Completed */}
-              {completedGoals.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3">Completed 🎉</p>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {completedGoals.map(goal => {
-                      return (
-                        <div
-                          key={goal.id}
-                          className={`bg-white rounded-2xl border shadow-sm p-5 flex items-center gap-4 ${selectMode && selected.has(goal.id) ? 'border-teal-400 ring-2 ring-teal-200' : 'border-emerald-100'}`}
-                          onClick={selectMode ? () => setSelected(prev => { const next = new Set(prev); next.has(goal.id) ? next.delete(goal.id) : next.add(goal.id); return next; }) : undefined}
-                          style={selectMode ? { cursor: 'pointer' } : undefined}
-                        >
-                          {selectMode && (
-                            <input
-                              type="checkbox"
-                              checked={selected.has(goal.id)}
-                              onChange={() => {}}
-                              className="w-4 h-4 accent-teal-500 cursor-pointer shrink-0"
-                            />
-                          )}
-                          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                            <CheckCircle size={20} className="text-emerald-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-stone-800 truncate">{goal.name}</p>
-                            <p className="text-xs text-emerald-600 font-medium">{fmtAmt(goal.target_amount)} · Fully saved</p>
-                          </div>
-                          {!selectMode && (
-                            <button onClick={() => openDelete(goal)} className="p-1.5 text-stone-200 hover:text-red-400 rounded-lg transition-colors">
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                          return (
+                            <div
+                              key={goal.id}
+                              className={`relative bg-white rounded-2xl border shadow-sm overflow-hidden ${selectMode && selected.has(goal.id) ? 'border-teal-400 ring-2 ring-teal-200' : 'border-red-100'}`}
+                              data-testid={`goal-card-${goal.id}`}
+                              onClick={selectMode ? () => setSelected(prev => { const next = new Set(prev); next.has(goal.id) ? next.delete(goal.id) : next.add(goal.id); return next; }) : undefined}
+                              style={selectMode ? { cursor: 'pointer' } : undefined}
+                            >
+                              {selectMode && (
+                                <div className="absolute top-3 left-3 z-10">
+                                  <input type="checkbox" checked={selected.has(goal.id)} onChange={() => {}} className="w-4 h-4 accent-teal-500 cursor-pointer" />
+                                </div>
+                              )}
+                              {/* Red overdue band */}
+                              <div className="h-1.5 bg-gradient-to-r from-red-400 to-red-500" style={{ width: `${pct}%` }} />
+
+                              <div className="p-5">
+                                <div className="flex items-start justify-between mb-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`p-2.5 rounded-xl ${CAT_COLORS[goal.category] || CAT_COLORS.general}`}>
+                                      <Icon size={18} />
+                                    </div>
+                                    <div>
+                                      <p className="font-bold text-stone-800 text-sm leading-tight">{goal.name}</p>
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700">
+                                        {daysOverdue}d overdue
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {/* Red delete button for overdue goals */}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openDelete(goal); }}
+                                    data-testid={`delete-overdue-${goal.id}`}
+                                    className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete overdue goal"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+
+                                {/* Amounts */}
+                                <div className="flex justify-between items-end mb-2">
+                                  <div>
+                                    <p className="text-[10px] text-stone-400 uppercase tracking-wide">Saved</p>
+                                    <p className="font-bold text-xl text-stone-900 font-['Outfit']">{fmtAmt(goal.current_amount)}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-[10px] text-stone-400 uppercase tracking-wide">Target</p>
+                                    <p className="font-semibold text-stone-500 text-sm">{fmtAmt(goal.target_amount)}</p>
+                                  </div>
+                                </div>
+
+                                {/* Progress bar */}
+                                <div className="mb-3">
+                                  <div className="h-2 bg-stone-100 rounded-full overflow-hidden mb-1">
+                                    <div className="h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-500"
+                                      style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <div className="flex justify-between text-[10px] text-stone-400">
+                                    <span>{pct}% complete</span>
+                                    <span>{fmtShort(goal.target_amount - goal.current_amount)} left</span>
+                                  </div>
+                                </div>
+
+                                {/* CTA — still allow contributions */}
+                                <Button
+                                  onClick={() => openContribute(goal)}
+                                  size="sm"
+                                  className="w-full h-8 bg-gradient-to-r from-stone-400 to-stone-500 hover:from-stone-500 hover:to-stone-600 text-xs font-semibold"
+                                >
+                                  <Plus size={13} className="mr-1" /> Add Money
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Completed goals */}
+                  {completedGoals.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3">Completed 🎉</p>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {completedGoals.map(goal => {
+                          return (
+                            <div
+                              key={goal.id}
+                              className={`bg-white rounded-2xl border shadow-sm p-5 flex items-center gap-4 ${selectMode && selected.has(goal.id) ? 'border-teal-400 ring-2 ring-teal-200' : 'border-emerald-100'}`}
+                              onClick={selectMode ? () => setSelected(prev => { const next = new Set(prev); next.has(goal.id) ? next.delete(goal.id) : next.add(goal.id); return next; }) : undefined}
+                              style={selectMode ? { cursor: 'pointer' } : undefined}
+                            >
+                              {selectMode && (
+                                <input
+                                  type="checkbox"
+                                  checked={selected.has(goal.id)}
+                                  onChange={() => {}}
+                                  className="w-4 h-4 accent-teal-500 cursor-pointer shrink-0"
+                                />
+                              )}
+                              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                                <CheckCircle size={20} className="text-emerald-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-stone-800 truncate">{goal.name}</p>
+                                <p className="text-xs text-emerald-600 font-medium">{fmtAmt(goal.target_amount)} · Fully saved</p>
+                              </div>
+                              {!selectMode && (
+                                <button onClick={() => openDelete(goal)} className="p-1.5 text-stone-200 hover:text-red-400 rounded-lg transition-colors">
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -532,6 +732,27 @@ const SavingsGoals = () => {
               <Input placeholder="Any notes..." value={formData.notes}
                 onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} className="mt-1.5" />
             </div>
+            {/* Chanakya's Check — smart goal validation */}
+            {(() => {
+              const check = getChanakyaCheck();
+              if (!check) return null;
+              const styles = {
+                warn:   "bg-amber-50 border-amber-200 text-amber-800",
+                danger: "bg-red-50 border-red-200 text-red-800",
+                info:   "bg-blue-50 border-blue-200 text-blue-800",
+                ok:     "bg-emerald-50 border-emerald-200 text-emerald-800",
+              };
+              return (
+                <div className={`rounded-xl border p-3 text-sm ${styles[check.type]}`} data-testid="chanakya-check">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Sparkles size={13} />
+                    <span className="font-semibold text-xs uppercase tracking-wide">Chanakya's Check</span>
+                  </div>
+                  <p className="text-sm leading-snug">{check.msg}</p>
+                </div>
+              );
+            })()}
+
             <div className="flex gap-3 pt-1">
               <Button type="submit" disabled={submitting} data-testid="create-goal-submit"
                 className="flex-1 bg-gradient-to-r from-teal-500 to-teal-600">

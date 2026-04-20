@@ -33,14 +33,18 @@ import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import TermsOfService from "@/pages/TermsOfService";
 import ProfilePage from "@/pages/ProfilePage";
 import FireCalculator from "@/pages/FireCalculator";
+import InvestmentAdvisor from "@/pages/InvestmentAdvisor";
 import FinancialCalendar from "@/pages/FinancialCalendar";
 import IncomePage from "@/pages/IncomePage";
 import DataManagement from "@/pages/DataManagement";
 import AdminPortal from "@/pages/AdminPortal";
+import LifeProfile from "@/pages/LifeProfile";
+import Playbook from "@/pages/Playbook";
 
 import CirclePage from "@/pages/CirclePage";
 import GiftTracker from "@/pages/GiftTracker";
 import RecurringExpenses from "@/pages/RecurringExpenses";
+import LifetimeEarnings from "@/pages/LifetimeEarnings";
 import { Toaster } from "@/components/ui/sonner";
 import { DashboardProvider } from "@/context/DashboardContext";
 
@@ -218,6 +222,7 @@ function AppShell() {
           <Route path="/luxury" element={<Navigate to="/investments" replace />} />
           <Route path="/children" element={<Navigate to="/dashboard" replace />} />
           <Route path="/fire" element={<ProtectedRoute><FireCalculator /></ProtectedRoute>} />
+          <Route path="/investment-advisor" element={<ProtectedRoute><InvestmentAdvisor /></ProtectedRoute>} />
           <Route path="/subscriptions" element={<Navigate to="/budget?tab=recurring" replace />} />
           <Route path="/recurring" element={<Navigate to="/budget" replace />} />
           <Route path="/income" element={<ProtectedRoute><IncomePage /></ProtectedRoute>} />
@@ -228,6 +233,10 @@ function AppShell() {
           <Route path="/circle" element={<ProtectedRoute><CirclePage /></ProtectedRoute>} />
           <Route path="/gifts" element={<ProtectedRoute><GiftTracker /></ProtectedRoute>} />
           <Route path="/recurring" element={<ProtectedRoute><RecurringExpenses /></ProtectedRoute>} />
+          <Route path="/lifetime-earnings" element={<ProtectedRoute><LifetimeEarnings /></ProtectedRoute>} />
+          <Route path="/life-profile" element={<ProtectedRoute><LifeProfile /></ProtectedRoute>} />
+          <Route path="/playbook" element={<ProtectedRoute><Playbook /></ProtectedRoute>} />
+          <Route path="/insights" element={<ProtectedRoute><Playbook /></ProtectedRoute>} />
         </Routes>
 
         {/* Floating Chanakya chat widget — inside Router so useLocation works */}

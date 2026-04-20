@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDashboard } from "@/context/DashboardContext";
 import axios from "axios";
 import { API } from "@/App";
@@ -452,6 +453,19 @@ const Chatbot = () => {
   // ── Prefetch dashboard data in background while chat loads ────────────────
   useEffect(() => { prefetch(); }, [prefetch]);
 
+  // ── Prefill from query param (e.g. /chat?prefill=How+do+I+save+more) ──
+  const [searchParams, setSearchParams] = useSearchParams();
+  const prefillHandled = useRef(false);
+  useEffect(() => {
+    if (prefillHandled.current) return;
+    const q = searchParams.get("prefill");
+    if (q) {
+      prefillHandled.current = true;
+      setInput(q);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   // ── Load history — show cache instantly, refresh from server in background ──
   useEffect(() => {
     // Step 1: render cached messages immediately (zero wait)
@@ -726,7 +740,7 @@ const Chatbot = () => {
                     <h1 className="text-base font-bold text-stone-100 leading-tight">Chanakya</h1>
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   </div>
-                  <DynamicSubtitle />
+                  <p className="text-[11px] text-stone-400 mt-0.5">Your AI financial advisor</p>
                 </div>
                 <div className="flex items-center gap-1">
                   {pinnedCount > 0 && (
@@ -820,34 +834,36 @@ const Chatbot = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* ── Quick action chips — always visible for all users ────────── */}
-          {!activeAction && (
-            <div className="px-3 pb-1 pt-0.5 shrink-0 flex gap-2 overflow-x-auto scrollbar-none">
-              {QUICK_ACTIONS.map(a => (
-                <button
-                  key={a.key}
-                  onClick={() => setActiveAction(a.key)}
-                  style={{ borderColor: "rgba(255,255,255,0.1)", color: "#a8a29e" }}
-                  className="text-xs px-3 py-1.5 rounded-full border bg-stone-800/70 whitespace-nowrap shrink-0 flex items-center gap-1.5 active:scale-95 transition-all"
-                >
-                  <a.icon size={11} style={{ color: a.color }} />
-                  {a.label}
-                </button>
-              ))}
+          {/* ── Quick action chips — always visible ──────────────────────── */}
+          <div className="px-3 pb-1 pt-0.5 shrink-0 flex gap-2 overflow-x-auto scrollbar-none">
+            {QUICK_ACTIONS.map(a => (
+              <button
+                key={a.key}
+                onClick={() => setActiveAction(a.key)}
+                style={{ borderColor: "rgba(255,255,255,0.1)", color: "#a8a29e" }}
+                className="text-xs px-3 py-1.5 rounded-full border bg-stone-800/70 whitespace-nowrap shrink-0 flex items-center gap-1.5 active:scale-95 transition-all"
+              >
+                <a.icon size={11} style={{ color: a.color }} />
+                {a.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── QuickComposer modal overlay — no layout shift ────────────── */}
+          {activeAction && (
+            <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setActiveAction(null)}>
+              <div className="w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+                <QuickComposer
+                  action={activeAction}
+                  onSend={(msg) => { sendMessage(msg); }}
+                  onClose={() => setActiveAction(null)}
+                />
+              </div>
             </div>
           )}
 
-          {/* ── Inline composer — replaces input when chip is active ──────── */}
-          {activeAction && (
-            <QuickComposer
-              action={activeAction}
-              onSend={(msg) => { sendMessage(msg); }}
-              onClose={() => setActiveAction(null)}
-            />
-          )}
-
           {/* ── Reply-to preview ─────────────────────────────────────────── */}
-          {replyTo && !activeAction && (
+          {replyTo && (
             <div className="mx-4 mb-1 px-3 py-2 bg-stone-800/80 border-l-2 border-amber-500 rounded-r-xl flex items-center gap-2 shrink-0">
               <Reply size={12} className="text-amber-400 shrink-0" />
               <p className="text-xs text-stone-400 truncate flex-1">{replyTo.content}</p>
@@ -877,8 +893,8 @@ const Chatbot = () => {
             </div>
           )}
 
-          {/* ── Text input bar (for open-ended questions) ────────────────── */}
-          {!activeAction && !listening && (
+          {/* ── Text input bar ───────────────────────────────────────────── */}
+          {!listening && (
             <div className="px-3 pb-3 pt-1 shrink-0" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
               <div className="flex items-end gap-2 w-full min-w-0">
                 <div className="flex-1 min-w-0 relative">

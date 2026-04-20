@@ -10,7 +10,7 @@ import {
   LayoutDashboard, X, CreditCard, Target, ShoppingCart, IndianRupee,
   FileText, Flame, User, TrendingUp, Moon, Sun,
   HandCoins, Plane, Scale, BarChart2, Wallet, LayoutGrid, CalendarDays, Crown, Users, Gift, RefreshCw,
-  MessageSquarePlus, Bug, Shield,
+  MessageSquarePlus, Bug, Shield, Receipt,
 } from 'lucide-react';
 
 // ── Primary tabs (always visible) ────────────────────────────────────────────
@@ -24,11 +24,19 @@ const TABS = [
 // ── More drawer — grouped ─────────────────────────────────────────────────────
 const MORE_GROUPS = [
   {
-    label: 'Manage',
+    label: 'EMI & Investments',
     items: [
       { to: '/emis',         label: 'EMIs',        icon: CreditCard, bg: 'bg-indigo-50',  iconBg: 'bg-indigo-100',  iconColor: 'text-indigo-600'  },
-      { to: '/savings-goals',label: 'Goals',       icon: Target,     bg: 'bg-emerald-50', iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600' },
       { to: '/investments',  label: 'Investments', icon: BarChart2,  bg: 'bg-blue-50',    iconBg: 'bg-blue-100',    iconColor: 'text-blue-600',   pro: true },
+      { to: '/savings-goals',label: 'Goals',       icon: Target,     bg: 'bg-emerald-50', iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600' },
+      { to: '/insurance',    label: 'Insurance',   icon: Shield,     bg: 'bg-emerald-50', iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600' },
+    ],
+  },
+  {
+    label: 'Manage',
+    items: [
+      { to: '/calendar',    label: 'Calendar',    icon: CalendarDays, bg: 'bg-orange-50', iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
+      { to: '/statements',  label: 'Statements',  icon: Receipt,      bg: 'bg-blue-50',   iconBg: 'bg-blue-100',   iconColor: 'text-blue-600'   },
     ],
   },
   {
@@ -41,7 +49,7 @@ const MORE_GROUPS = [
   {
     label: 'Together',
     items: [
-      { to: '/trips',          label: 'Planning',      icon: Plane,  bg: 'bg-cyan-50',  iconBg: 'bg-cyan-100',  iconColor: 'text-cyan-600',  pro: true },
+      { to: '/trips',          label: 'Trips',         icon: Plane,  bg: 'bg-cyan-50',  iconBg: 'bg-cyan-100',  iconColor: 'text-cyan-600',  pro: true },
       { to: '/group-expenses', label: 'Group Spend',   icon: Scale,  bg: 'bg-amber-50', iconBg: 'bg-amber-100', iconColor: 'text-amber-600', pro: true },
       { to: '/circle',         label: 'Family Circle', icon: Users,  bg: 'bg-pink-50',  iconBg: 'bg-pink-100',  iconColor: 'text-pink-600',  pro: true },
     ],
@@ -49,8 +57,10 @@ const MORE_GROUPS = [
   {
     label: 'Tools',
     items: [
-      { to: '/fire',  label: 'FIRE Calc',    icon: Flame,  bg: 'bg-rose-50',  iconBg: 'bg-rose-100',  iconColor: 'text-rose-600'  },
-      { to: '/admin', label: 'Admin Portal',  icon: Shield, bg: 'bg-stone-50', iconBg: 'bg-stone-100', iconColor: 'text-stone-600' },
+      { to: '/playbook',          label: 'Insights',     icon: LayoutGrid, bg: 'bg-sky-50',    iconBg: 'bg-sky-100',    iconColor: 'text-sky-600'    },
+      { to: '/investment-advisor', label: 'Invest Guide', icon: TrendingUp, bg: 'bg-amber-50',  iconBg: 'bg-amber-100',  iconColor: 'text-amber-600'  },
+      { to: '/life-profile',      label: 'Life Profile', icon: Users,      bg: 'bg-orange-50', iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
+      { to: '/admin',        label: 'Admin Portal', icon: Shield, bg: 'bg-stone-50',  iconBg: 'bg-stone-100',  iconColor: 'text-stone-600', admin: true },
     ],
   },
 ];
@@ -246,7 +256,7 @@ const Navigation = () => {
                 <div key={group.label}>
                   <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-2 px-1">{group.label}</p>
                   <div className="grid grid-cols-3 gap-2">
-                    {group.items.map(item => {
+                    {group.items.filter(item => !item.admin || user?.is_admin).map(item => {
                       const active = isActive(item.to);
                       const locked = item.pro && !user?.is_pro;
                       const sharedClass = `relative flex flex-col items-center gap-2 p-3 rounded-2xl text-center transition-all active:scale-95 ${

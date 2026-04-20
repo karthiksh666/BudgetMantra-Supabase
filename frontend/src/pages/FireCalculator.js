@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import Navigation from "@/components/Navigation";
 import { Flame, TrendingUp, Target, Clock, IndianRupee, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { Link } from "react-router-dom";
 import axios from "axios";
 import { API } from "@/App";
 
@@ -540,6 +541,13 @@ export default function FireCalculator() {
                 <p className="text-center text-[11px] text-stone-400 dark:text-stone-500 mt-2">
                   Saves your plan to the Dashboard for ongoing tracking
                 </p>
+                <Link
+                  to={`/savings-goals?prefill=${encodeURIComponent("FIRE Fund")}&amount=${Math.round(r.regularFireNum)}`}
+                  className="mt-3 w-full py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                >
+                  <Target size={15} />
+                  Set as Savings Goal
+                </Link>
               </div>
             </div>
           </div>

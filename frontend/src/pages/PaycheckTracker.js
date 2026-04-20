@@ -11,7 +11,8 @@ import { toast } from "sonner";
 import {
   IndianRupee, Sparkles, Trophy, TrendingUp,
   RefreshCw, Edit3, Trash2, Building2, Plus, Clock,
-  ChevronDown, ChevronUp, Briefcase, Receipt, History
+  ChevronDown, ChevronUp, Briefcase, Receipt, History,
+  Gem, CalendarDays, Save
 } from "lucide-react";
 import { MonthPicker } from "@/components/MonthPicker";
 
@@ -92,6 +93,49 @@ export default function PaycheckTracker() {
   const [savingPayslip, setSavingPayslip] = useState(false);
   const [showPayslipHistory, setShowPayslipHistory] = useState(false);
   const [deletePayslipMonth, setDeletePayslipMonth] = useState(null);
+
+  // ESOPs / RSUs state
+  const [showEsop, setShowEsop] = useState(false);
+  const [esopForm, setEsopForm] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("bm_salary_profile") || "{}");
+      return {
+        sharesGranted: saved.sharesGranted || "",
+        stockPrice: saved.stockPrice || "",
+        vestingYears: saved.vestingYears || "4",
+        cliffYears: saved.cliffYears || "1",
+      };
+    } catch { return { sharesGranted: "", stockPrice: "", vestingYears: "4", cliffYears: "1" }; }
+  });
+
+  // Salary day selector
+  const [salaryDay, setSalaryDay] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("bm_salary_profile") || "{}");
+      return saved.salaryDay || null;
+    } catch { return null; }
+  });
+
+  // Derived ESOP calculations
+  const esopShares = parseFloat(esopForm.sharesGranted) || 0;
+  const esopPrice = parseFloat(esopForm.stockPrice) || 0;
+  const esopVesting = parseFloat(esopForm.vestingYears) || 4;
+  const esopAnnualValue = esopShares > 0 && esopPrice > 0 ? (esopShares / esopVesting) * esopPrice : 0;
+  const esopMonthlyValue = esopAnnualValue / 12;
+  const esopTotalValue = esopShares * esopPrice;
+
+  const handleSaveProfile = () => {
+    const profile = {
+      sharesGranted: esopForm.sharesGranted,
+      stockPrice: esopForm.stockPrice,
+      vestingYears: esopForm.vestingYears,
+      cliffYears: esopForm.cliffYears,
+      salaryDay,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem("bm_salary_profile", JSON.stringify(profile));
+    toast.success("Salary profile saved!");
+  };
 
   const fetchJobs = useCallback(async () => {
     const res = await axios.get(`${API}/jobs`);
@@ -501,6 +545,122 @@ export default function PaycheckTracker() {
             </div>
           )}
         </div>
+
+        {/* ── ESOPs / RSUs Section ─────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          <button
+            onClick={() => setShowEsop(v => !v)}
+            className="w-full px-5 py-4 border-b border-stone-100 flex items-center justify-between hover:bg-stone-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Gem size={15} className="text-indigo-500" />
+              <h2 className="font-semibold text-stone-800 text-sm">ESOPs / RSUs</h2>
+              <span className="text-[10px] text-stone-400 bg-stone-100 rounded-full px-2 py-0.5">Equity</span>
+            </div>
+            {showEsop ? <ChevronUp size={14} className="text-stone-400" /> : <ChevronDown size={14} className="text-stone-400" />}
+          </button>
+
+          {showEsop && (
+            <div className="px-5 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-stone-600 text-xs font-medium mb-1 block">Shares Granted</Label>
+                  <Input type="number" placeholder="e.g. 1000"
+                    value={esopForm.sharesGranted}
+                    onChange={e => setEsopForm(f => ({ ...f, sharesGranted: e.target.value }))}
+                    className="h-10 rounded-xl border-stone-200 focus:border-indigo-400 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-stone-600 text-xs font-medium mb-1 block">Current Stock Price (₹)</Label>
+                  <Input type="number" placeholder="e.g. 250"
+                    value={esopForm.stockPrice}
+                    onChange={e => setEsopForm(f => ({ ...f, stockPrice: e.target.value }))}
+                    className="h-10 rounded-xl border-stone-200 focus:border-indigo-400 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-stone-600 text-xs font-medium mb-1 block">Vesting Period (years)</Label>
+                  <Input type="number" placeholder="4"
+                    value={esopForm.vestingYears}
+                    onChange={e => setEsopForm(f => ({ ...f, vestingYears: e.target.value }))}
+                    className="h-10 rounded-xl border-stone-200 focus:border-indigo-400 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-stone-600 text-xs font-medium mb-1 block">Cliff Period (years)</Label>
+                  <Input type="number" placeholder="1"
+                    value={esopForm.cliffYears}
+                    onChange={e => setEsopForm(f => ({ ...f, cliffYears: e.target.value }))}
+                    className="h-10 rounded-xl border-stone-200 focus:border-indigo-400 text-sm" />
+                </div>
+              </div>
+
+              {/* ESOP Calculations */}
+              {esopShares > 0 && esopPrice > 0 && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl p-3 bg-indigo-50 border border-indigo-100">
+                      <p className="text-[10px] text-indigo-500 font-medium">Annual ESOP Value</p>
+                      <p className="text-sm font-bold text-indigo-700 mt-0.5">{fmtINR(esopAnnualValue)}</p>
+                      <p className="text-[10px] text-indigo-400 mt-0.5">({esopShares}/{esopVesting}) x {fmtINR(esopPrice)}</p>
+                    </div>
+                    <div className="rounded-xl p-3 bg-violet-50 border border-violet-100">
+                      <p className="text-[10px] text-violet-500 font-medium">Monthly ESOP Value</p>
+                      <p className="text-sm font-bold text-violet-700 mt-0.5">{fmtINR(esopMonthlyValue)}</p>
+                    </div>
+                    <div className="rounded-xl p-3 bg-emerald-50 border border-emerald-100">
+                      <p className="text-[10px] text-emerald-500 font-medium">Total ESOP Value</p>
+                      <p className="text-sm font-bold text-emerald-700 mt-0.5">{fmtShort(esopTotalValue)}</p>
+                      <p className="text-[10px] text-emerald-400 mt-0.5">{esopShares} x {fmtINR(esopPrice)}</p>
+                    </div>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                    <p className="text-[11px] text-amber-700">
+                      <span className="font-semibold">Note:</span> ESOPs are taxed as perquisite at vesting + LTCG on sale
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Salary Day Selector ──────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
+            <CalendarDays size={15} className="text-amber-500" />
+            <h2 className="font-semibold text-stone-800 text-sm">Salary Credit Day</h2>
+          </div>
+          <div className="px-5 py-4">
+            <p className="text-xs text-stone-400 mb-3">Select the day your salary is credited each month</p>
+            <div className="flex flex-wrap gap-2">
+              {[1, 5, 7, 10, 15, 25, 28, 30].map(day => (
+                <button
+                  key={day}
+                  onClick={() => setSalaryDay(salaryDay === day ? null : day)}
+                  className={`w-11 h-11 rounded-xl text-sm font-semibold transition-all ${
+                    salaryDay === day
+                      ? "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200"
+                      : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                  }`}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
+            {salaryDay && (
+              <p className="text-xs text-stone-500 mt-3">
+                Salary credits on the <span className="font-semibold text-amber-600">{salaryDay}{salaryDay === 1 ? "st" : salaryDay === 2 ? "nd" : salaryDay === 3 ? "rd" : "th"}</span> of every month
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* ── Save Salary Profile ──────────────────────────────── */}
+        <Button
+          onClick={handleSaveProfile}
+          className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl font-semibold h-12 shadow-md shadow-orange-200"
+        >
+          <Save size={15} className="mr-2" /> Save Salary Profile
+        </Button>
       </div>
 
       {/* ── Add Payslip Dialog ──────────────────────────────────── */}
