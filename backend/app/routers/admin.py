@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.config import get_settings
@@ -5,6 +6,7 @@ from app.database import get_admin_db
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 def _check_secret(admin_secret: str):
@@ -47,30 +49,74 @@ async def admin_users(admin_secret: str = Query(""), skip: int = 0, limit: int =
 
 @router.get("/feedback")
 async def admin_feedback(admin_secret: str = Query(""), category: str = "", skip: int = 0, limit: int = 50):
+    """Unified feed across the `feedback` table (web forms) AND
+    `support_tickets` (mobile SupportScreen). Both paths can hold bug reports
+    — this endpoint merges them on the fly so the admin UI shows everything
+    without a data migration. Support-ticket fields are normalised to the
+    feedback shape so existing UI components render unchanged."""
     _check_secret(admin_secret)
     supabase = get_admin_db()
-    q = supabase.table("feedback").select("*").order("created_at", desc=True)
+
+    # Pull both sources (bounded so an avalanche of tickets can't blow memory).
+    fq = supabase.table("feedback").select("*")
     if category:
-        q = q.eq("category", category)
-    res = q.range(skip, skip + limit - 1).execute()
-    total = supabase.table("feedback").select("id", count="exact").execute().count or 0
-    return {"items": res.data or [], "total": total}
+        fq = fq.eq("category", category)
+    feedback_items = (fq.limit(2000).execute().data) or []
+
+    ticket_items: list = []
+    try:
+        tq = supabase.table("support_tickets").select("*")
+        if category:
+            tq = tq.eq("category", category)
+        ticket_items = (tq.limit(2000).execute().data) or []
+    except Exception as e:
+        logger.info(f"[admin_feedback] support_tickets table unavailable: {e}")
+        ticket_items = []
+
+    # Normalise support_tickets → feedback shape.
+    # support_tickets fields: id, user_id, email, name, category, subject,
+    # description, status, platform, app_version, created_at, updated_at
+    for t in ticket_items:
+        t.setdefault("user_email", t.pop("email", ""))
+        t.setdefault("user_name",  t.pop("name",  ""))
+        t.setdefault("bug_title",  t.pop("subject", ""))
+        t.setdefault("severity",       "")
+        t.setdefault("nps_score",      None)
+        t.setdefault("overall_rating", 0)
+        t.setdefault("feature_ratings", {})
+        t.setdefault("steps_to_reproduce", "")
+        t.setdefault("browser_info",
+                     " ".join(filter(None, [t.get("platform"), t.get("app_version")])).strip())
+        t.setdefault("page", "")
+        t.setdefault("is_pro", False)
+        t["_source"] = "support_ticket"
+
+    for f in feedback_items:
+        f["_source"] = "feedback"
+
+    all_items = feedback_items + ticket_items
+    all_items.sort(key=lambda x: x.get("created_at", "") or "", reverse=True)
+
+    total = len(all_items)
+    page  = all_items[skip:skip + limit]
+    return {"items": page, "total": total}
 
 
 @router.post("/delete-user")
 async def admin_delete_user(body: dict):
+    """Permanently disabled. Account deletion must go through the user's own
+    'Delete Account' flow so it's authenticated + audit-logged. This admin
+    shortcut was too easy to misuse and carried no dry-run or undo. Returns
+    a clear 410 so stale admin UIs don't silently succeed."""
     _check_secret(body.get("admin_secret", ""))
-    email = body.get("email", "").strip().lower()
-    if not email:
-        raise HTTPException(400, "Email required")
-    supabase = get_admin_db()
-    user = supabase.table("profiles").select("id").eq("email", email).execute()
-    if not user.data:
-        raise HTTPException(404, "User not found")
-    user_id = user.data[0]["id"]
-    # Delete from Supabase Auth (cascades to profiles + all tables via FK)
-    supabase.auth.admin.delete_user(user_id)
-    return {"ok": True, "deleted": email}
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Admin user-delete is disabled. Users must delete their own "
+            "accounts via Profile → Delete Account so the action is "
+            "authenticated and logged."
+        ),
+    )
 
 
 @router.post("/make-admin")

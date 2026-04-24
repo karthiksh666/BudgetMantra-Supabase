@@ -6,6 +6,7 @@ delegated to Supabase Auth.  The backend just handles profile creation
 (writing to the `profiles` table after first sign-up) and returns the
 Supabase JWT directly to the client.
 """
+import bcrypt
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 from app.database import get_supabase, get_admin_db
@@ -14,6 +15,27 @@ from app.config import get_settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
+
+
+def _user_has_password(user: dict) -> bool:
+    """True iff user has a real (non-placeholder) password.
+
+    Google-signup users get the literal "__google__" sentinel, and phone-OTP
+    users get a bcrypt hash of b"__phone_user__" — neither counts as a real
+    password. If a Google user later resets their password via the forgot-
+    password flow they get a real bcrypt hash and this returns True.
+    """
+    ph = user.get("password_hash")
+    if not ph:
+        return False
+    if ph == "__google__" or ph.startswith("__"):
+        return False
+    try:
+        if bcrypt.checkpw(b"__phone_user__", ph.encode()):
+            return False
+    except Exception:
+        pass
+    return True
 
 
 # ── Models ──────────────────────────────────────────────────────────────────
@@ -118,6 +140,25 @@ async def register(body: RegisterInput):
 @router.post("/login")
 async def login(body: LoginInput):
     supabase = get_supabase()
+    # Pre-check the profile row: if the account was created via Google or
+    # phone-OTP and the user never set a real password, fail fast with a
+    # branch-specific message instead of the generic "invalid email/password".
+    # A Google user who later reset their password via /auth/forgot-password
+    # gets a real bcrypt hash and passes _user_has_password — so this gate
+    # does NOT lock them out after a reset.
+    try:
+        pre = get_admin_db().table("profiles").select("password_hash,auth_provider").eq("email", body.email).execute()
+        pre_row = pre.data[0] if pre.data else None
+    except Exception:
+        pre_row = None
+    if pre_row and not _user_has_password(pre_row):
+        auth_provider = (pre_row.get("auth_provider") or "").lower()
+        if auth_provider == "google":
+            raise HTTPException(401, "This account was created with Google sign-in. Use 'Continue with Google', or reset your password first.")
+        if auth_provider == "phone":
+            raise HTTPException(401, "This account signs in via phone OTP. Use 'Sign in with phone', or set a password from your profile first.")
+        raise HTTPException(401, "No password set on this account. Use 'Forgot password' to set one.")
+
     try:
         res = supabase.auth.sign_in_with_password({
             "email": body.email,
