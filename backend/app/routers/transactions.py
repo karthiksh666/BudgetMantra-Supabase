@@ -177,3 +177,76 @@ async def delete_transaction(transaction_id: str, current_user: dict = Depends(g
         .eq("user_id", current_user["id"])\
         .execute()
     return {"ok": True}
+
+
+@router.get("/transactions/today-summary")
+async def get_today_summary(current_user: dict = Depends(get_current_user)):
+    """Return today's expense and income totals."""
+    from datetime import datetime, timezone
+    supabase = get_admin_db()
+    today = datetime.now(timezone.utc).date().isoformat()
+    res = supabase.table("transactions").select("amount,type").eq("user_id", current_user["id"]).eq("date", today).execute()
+    txns = res.data or []
+    expense = sum(t["amount"] for t in txns if t.get("type") == "expense")
+    income = sum(t["amount"] for t in txns if t.get("type") == "income")
+    income_res = supabase.table("income_entries").select("amount").eq("user_id", current_user["id"]).eq("date", today).execute()
+    income += sum(i["amount"] for i in (income_res.data or []))
+    return {"date": today, "total_expense": round(expense, 2), "total_income": round(income, 2), "net": round(income - expense, 2), "count": len(txns)}
+
+
+@router.post("/transactions/bulk")
+async def bulk_import_transactions(body: dict, current_user: dict = Depends(get_current_user)):
+    """Bulk insert transactions. Body: {transactions: [{description, amount, date, type, category}]}"""
+    import uuid
+    from datetime import datetime, timezone
+    supabase = get_admin_db()
+    txns = body.get("transactions", [])
+    if not txns:
+        return {"imported": 0, "duplicates": 0}
+    uid = current_user["id"]
+    imported = 0
+    duplicates = 0
+    for t in txns:
+        # Check duplicate by (user_id, date, amount, description)
+        existing = supabase.table("transactions").select("id").eq("user_id", uid).eq("date", t.get("date","")).eq("amount", t.get("amount", 0)).eq("description", t.get("description","")).execute()
+        if existing.data:
+            duplicates += 1
+            continue
+        doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": uid,
+            "description": t.get("description", ""),
+            "amount": float(t.get("amount", 0)),
+            "date": t.get("date", ""),
+            "type": t.get("type", "expense"),
+            "category": t.get("category", "Uncategorised"),
+            "source": "bulk_import",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        supabase.table("transactions").insert(doc).execute()
+        imported += 1
+    return {"imported": imported, "duplicates": duplicates}
+
+
+@router.post("/income-entries/bulk")
+async def bulk_import_income(body: dict, current_user: dict = Depends(get_current_user)):
+    """Bulk insert income entries."""
+    import uuid
+    from datetime import datetime, timezone
+    supabase = get_admin_db()
+    entries = body.get("entries", body.get("transactions", []))
+    uid = current_user["id"]
+    imported = 0
+    for e in entries:
+        doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": uid,
+            "source": e.get("source", e.get("description", "")),
+            "amount": float(e.get("amount", 0)),
+            "date": e.get("date", ""),
+            "type": e.get("type", "salary"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        supabase.table("income_entries").insert(doc).execute()
+        imported += 1
+    return {"imported": imported}

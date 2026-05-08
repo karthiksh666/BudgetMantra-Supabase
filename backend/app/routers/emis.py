@@ -199,3 +199,42 @@ async def preclosure_calculate(emi_id: str, current_user: dict = Depends(get_cur
         "preclosure_penalty":     penalty,
         "total_payable":          round(outstanding + penalty, 2),
     }
+
+
+@router.get("/emis/recommendations")
+async def get_emi_recommendations(current_user: dict = Depends(get_current_user)):
+    """Return EMI payoff recommendations: which EMI to prepay first (highest interest rate)."""
+    supabase = get_admin_db()
+    res = supabase.table("emis").select("*").eq("user_id", current_user["id"]).eq("status", "active").execute()
+    emis = res.data or []
+    # Sort by interest_rate descending (avalanche method)
+    emis_with_rate = [e for e in emis if e.get("interest_rate", 0) > 0]
+    emis_with_rate.sort(key=lambda x: x.get("interest_rate", 0), reverse=True)
+    recommendations = []
+    for i, e in enumerate(emis_with_rate[:3]):
+        recommendations.append({
+            "emi_id": e["id"],
+            "name": e.get("name") or e.get("loan_name", ""),
+            "interest_rate": e.get("interest_rate", 0),
+            "outstanding": e.get("outstanding_amount") or e.get("principal", 0),
+            "monthly_payment": e.get("emi_amount") or e.get("monthly_payment", 0),
+            "priority": i + 1,
+            "reason": f"Highest interest rate at {e.get('interest_rate', 0)}% p.a. — pay this off first to save the most.",
+        })
+    return {"recommendations": recommendations, "strategy": "avalanche"}
+
+
+@router.post("/emis/trigger-auto-debit")
+async def trigger_auto_debit(current_user: dict = Depends(get_current_user)):
+    """Manually trigger auto-debit check for this user's EMIs."""
+    from datetime import datetime, timezone
+    supabase = get_admin_db()
+    today = datetime.now(timezone.utc)
+    res = supabase.table("emis").select("*").eq("user_id", current_user["id"]).eq("status", "active").execute()
+    emis = res.data or []
+    triggered = []
+    for e in emis:
+        due_day = e.get("emi_debit_day") or e.get("due_date_day") or 0
+        if due_day and int(due_day) == today.day:
+            triggered.append(e.get("id"))
+    return {"triggered_count": len(triggered), "emi_ids": triggered}

@@ -79,3 +79,30 @@ async def mark_all_notifications_read(current_user: dict = Depends(get_current_u
     supabase = get_admin_db()
     supabase.table("notifications").update({"read": True}).eq("user_id", current_user["id"]).eq("read", False).execute()
     return {"ok": True}
+
+
+@router.get("/notifications/inbox")
+async def get_notifications_inbox(current_user: dict = Depends(get_current_user)):
+    """Unified inbox: all notifications, newest first, with unread count."""
+    supabase = get_admin_db()
+    try:
+        res = supabase.table("notifications").select("*").eq("user_id", current_user["id"]).order("created_at", desc=True).limit(50).execute()
+        items = res.data or []
+        unread = sum(1 for n in items if not n.get("read", False))
+        return {"notifications": items, "unread_count": unread}
+    except Exception:
+        return {"notifications": [], "unread_count": 0}
+
+
+@router.post("/notifications/mark-read")
+async def mark_notifications_read(body: dict, current_user: dict = Depends(get_current_user)):
+    """Mark one notification (body={id}) or all (body={kind:'all'}) as read."""
+    supabase = get_admin_db()
+    try:
+        if body.get("kind") == "all":
+            supabase.table("notifications").update({"read": True}).eq("user_id", current_user["id"]).execute()
+        elif body.get("id"):
+            supabase.table("notifications").update({"read": True}).eq("id", body["id"]).eq("user_id", current_user["id"]).execute()
+    except Exception:
+        pass
+    return {"ok": True}

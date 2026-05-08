@@ -23,6 +23,8 @@ from app.routers import (
     market, sms, financial_score, reset,
     income_entries, recurring_expenses, credit_cards, trips,
     notifications, circle, fire_goal,
+    agent, statements, yearly_earnings, recurring_income_profiles,
+    notes, watchlist, support_tickets,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -102,6 +104,15 @@ app.include_router(reset.router,            prefix=PREFIX)
 app.include_router(notifications.router,    prefix=PREFIX)
 app.include_router(circle.router,           prefix=PREFIX)
 app.include_router(fire_goal.router,        prefix=PREFIX)
+
+# New features
+app.include_router(agent.router,                    prefix=PREFIX)
+app.include_router(statements.router,               prefix=PREFIX)
+app.include_router(yearly_earnings.router,          prefix=PREFIX)
+app.include_router(recurring_income_profiles.router, prefix=PREFIX)
+app.include_router(notes.router,                    prefix=PREFIX)
+app.include_router(watchlist.router,                prefix=PREFIX)
+app.include_router(support_tickets.router,          prefix=PREFIX)
 
 
 @app.get("/")

@@ -185,3 +185,33 @@ async def settle_circle(circle_id: str, current_user: dict = Depends(get_current
     supabase = get_admin_db()
     supabase.table("circle_expenses").delete().eq("circle_id", circle_id).execute()
     return {"ok": True, "message": "All expenses settled and cleared."}
+
+
+@router.get("/{circle_id}/messages")
+async def get_circle_messages(circle_id: str, current_user: dict = Depends(get_current_user)):
+    supabase = get_admin_db()
+    try:
+        res = supabase.table("circle_messages").select("*").eq("circle_id", circle_id).order("created_at").limit(100).execute()
+        return res.data or []
+    except Exception:
+        return []
+
+
+@router.post("/{circle_id}/messages")
+async def post_circle_message(circle_id: str, body: dict, current_user: dict = Depends(get_current_user)):
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    supabase = get_admin_db()
+    doc = {
+        "id": str(_uuid.uuid4()),
+        "circle_id": circle_id,
+        "user_id": current_user["id"],
+        "sender_name": current_user.get("full_name") or current_user.get("name") or "Member",
+        "content": body.get("content", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        res = supabase.table("circle_messages").insert(doc).execute()
+        return res.data[0] if res.data else doc
+    except Exception:
+        return doc

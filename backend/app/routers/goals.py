@@ -138,3 +138,37 @@ async def savings_goals_summary(current_user: dict = Depends(get_current_user)):
         "overall_progress": round((total_saved / total_target * 100) if total_target > 0 else 0, 1),
         "alerts": alerts,
     }
+
+
+@router.get("/{goal_id}")
+async def get_single_goal(goal_id: str, current_user: dict = Depends(get_current_user)):
+    """Get a single savings goal by ID."""
+    supabase = get_admin_db()
+    res = supabase.table("savings_goals").select("*, goal_contributions(*)").eq("id", goal_id).eq("user_id", current_user["id"]).maybe_single().execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return res.data
+
+
+@router.get("/{goal_id}/linked-investments")
+async def get_goal_linked_investments(goal_id: str, current_user: dict = Depends(get_current_user)):
+    """Return investments tagged to this goal."""
+    supabase = get_admin_db()
+    # Verify ownership
+    g = supabase.table("savings_goals").select("id").eq("id", goal_id).eq("user_id", current_user["id"]).maybe_single().execute()
+    if not g.data:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    res = supabase.table("investments").select("*").eq("user_id", current_user["id"]).eq("goal_id", goal_id).execute()
+    return res.data or []
+
+
+@router.post("/{goal_id}/price-watch")
+async def set_goal_price_watch(goal_id: str, body: dict, current_user: dict = Depends(get_current_user)):
+    """Set a price-watch alert for this goal (stub — stores in goal metadata)."""
+    supabase = get_admin_db()
+    g = supabase.table("savings_goals").select("id").eq("id", goal_id).eq("user_id", current_user["id"]).maybe_single().execute()
+    if not g.data:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    from datetime import datetime, timezone
+    supabase.table("savings_goals").update({"price_watch": body, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", goal_id).execute()
+    return {"ok": True, "price_watch": body}

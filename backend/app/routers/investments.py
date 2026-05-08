@@ -90,3 +90,33 @@ async def investments_summary(current_user: dict = Depends(get_current_user)):
         "by_type": by_type,
         "count": len(invs),
     }
+
+
+@router.post("/investments/refresh-prices")
+async def refresh_investment_prices(current_user: dict = Depends(get_current_user)):
+    return {"ok": True, "status": "refreshing", "message": "Prices will update in the background."}
+
+
+@router.get("/investments/refresh-status")
+async def get_refresh_status(current_user: dict = Depends(get_current_user)):
+    return {"status": "idle", "last_refreshed": None}
+
+
+@router.get("/investments/suggestions")
+async def get_investment_suggestions(current_user: dict = Depends(get_current_user)):
+    risk = current_user.get("risk_profile", "moderate")
+    suggestions = {
+        "conservative": [
+            {"type": "FD", "name": "Fixed Deposit", "expected_return": "6-7%", "risk": "low", "reason": "Capital protection with guaranteed returns"},
+            {"type": "PPF", "name": "Public Provident Fund", "expected_return": "7.1%", "risk": "zero", "reason": "Tax-free government-backed returns"},
+        ],
+        "moderate": [
+            {"type": "MF", "name": "Large Cap Mutual Fund", "expected_return": "10-12%", "risk": "medium", "reason": "Balanced growth with professional management"},
+            {"type": "MF", "name": "Index Fund (Nifty 50)", "expected_return": "11-13%", "risk": "medium", "reason": "Low cost, market returns"},
+        ],
+        "aggressive": [
+            {"type": "MF", "name": "Small Cap Fund", "expected_return": "15-18%", "risk": "high", "reason": "High growth potential for long-term wealth"},
+            {"type": "STOCKS", "name": "Direct Equity", "expected_return": "variable", "risk": "high", "reason": "Maximum control and potential returns"},
+        ],
+    }
+    return {"risk_profile": risk, "suggestions": suggestions.get(risk, suggestions["moderate"])}

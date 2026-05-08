@@ -162,3 +162,31 @@ async def update_silver(item_id: str, body: SilverItemCreate, current_user: dict
     if not res.data:
         raise HTTPException(404, "Item not found")
     return res.data[0]
+
+
+@router.get("/gold/buy-advice")
+async def get_gold_buy_advice(current_user: dict = Depends(get_current_user)):
+    supabase = get_admin_db()
+    res = supabase.table("gold_items").select("quantity").eq("user_id", current_user["id"]).execute()
+    total_grams = sum(i.get("quantity", 0) for i in (res.data or []))
+    return {
+        "advice": "accumulate",
+        "reason": "Gold is a good hedge against inflation. Consider buying on dips.",
+        "total_holdings_grams": round(total_grams, 3),
+        "recommended_allocation_pct": 10,
+        "note": "Keep 5-15% of portfolio in gold as a hedge.",
+    }
+
+
+@router.get("/silver/buy-advice")
+async def get_silver_buy_advice(current_user: dict = Depends(get_current_user)):
+    supabase = get_admin_db()
+    res = supabase.table("silver_items").select("quantity").eq("user_id", current_user["id"]).execute()
+    total_grams = sum(i.get("quantity", 0) for i in (res.data or []))
+    return {
+        "advice": "hold",
+        "reason": "Silver has both industrial and monetary value. Hold current position.",
+        "total_holdings_grams": round(total_grams, 3),
+        "recommended_allocation_pct": 5,
+        "note": "Silver is more volatile than gold. Limit to 5% of portfolio.",
+    }

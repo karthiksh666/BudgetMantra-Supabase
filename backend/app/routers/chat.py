@@ -669,3 +669,31 @@ def _execute_action(act: str, action: dict, user_id: str, today: str,
         return f"⚠️ Couldn't save that entry: {str(e)}"
 
     return ""
+
+
+@router.get("/chatbot/usage-info")
+async def get_chatbot_usage_info(current_user: dict = Depends(get_current_user)):
+    """Return AI usage stats and session info for the chat header."""
+    supabase = get_admin_db()
+    try:
+        # Count messages this month
+        from datetime import datetime, timezone
+        month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        res = supabase.table("chat_messages").select("id", count="exact").eq("user_id", current_user["id"]).gte("created_at", month_start).execute()
+        msg_count = res.count or 0
+        profile = current_user
+        return {
+            "messages_this_month": msg_count,
+            "is_pro": profile.get("is_pro", False),
+            "monthly_limit": 500 if profile.get("is_pro") else 100,
+            "ai_enabled": profile.get("ai_consent_enabled", True),
+            "language": profile.get("chat_language_pref", "english"),
+        }
+    except Exception:
+        return {"messages_this_month": 0, "is_pro": False, "monthly_limit": 100, "ai_enabled": True, "language": "english"}
+
+
+@router.post("/chatbot/improve-prompt")
+async def improve_prompt(body: dict, current_user: dict = Depends(get_current_user)):
+    """Echo-back improved prompt (stub — full AI optimize is in /chat endpoint)."""
+    return {"improved": body.get("prompt", ""), "ok": True}

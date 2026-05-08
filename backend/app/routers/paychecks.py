@@ -59,3 +59,43 @@ async def lifetime_stats(current_user: dict = Depends(get_current_user)):
         "months_tracked": len(paychecks),
         "highest_month": paychecks[totals.index(max(totals))]["month"],
     }
+
+
+@router.post("/paychecks/fill-history")
+async def fill_paycheck_history(body: dict, current_user: dict = Depends(get_current_user)):
+    """Backfill paycheck history from yearly earnings data."""
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    supabase = get_admin_db()
+    try:
+        yr_res = supabase.table("yearly_earnings").select("year,ctc_annual").eq("user_id", current_user["id"]).execute()
+    except Exception:
+        return {"filled": 0}
+    records = yr_res.data or []
+    filled = 0
+    now = datetime.now(timezone.utc).isoformat()
+    for rec in records:
+        year = rec.get("year")
+        annual = float(rec.get("ctc_annual") or 0)
+        if not year or not annual:
+            continue
+        monthly = annual / 12
+        for month in range(1, 13):
+            month_str = f"{year}-{month:02d}"
+            existing = supabase.table("paychecks").select("id").eq("user_id", current_user["id"]).eq("month", month_str).execute()
+            if not existing.data:
+                supabase.table("paychecks").insert({
+                    "id": str(_uuid.uuid4()),
+                    "user_id": current_user["id"],
+                    "month": month_str,
+                    "gross_salary": round(monthly, 2),
+                    "net_salary": round(monthly * 0.8, 2),
+                    "created_at": now,
+                }).execute()
+                filled += 1
+    return {"filled": filled}
+
+
+@router.post("/paychecks/parse-pdf")
+async def parse_paycheck_pdf(current_user: dict = Depends(get_current_user)):
+    return {"ok": False, "message": "Paycheck PDF parsing is not yet supported. Please enter your paycheck details manually."}
